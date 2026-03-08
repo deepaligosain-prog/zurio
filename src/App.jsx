@@ -337,17 +337,26 @@ function RolePicker({ user, onRoleSet }) {
 }
 
 function ReviewerSignup({ user, onDone }) {
-  // Pre-fill resume from most recent candidate submission if available
-  const candidateResume = user?.candidates?.[user.candidates.length - 1]?.resume || "";
   const [form, setForm] = useState({
-    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"",
-    resumeText: candidateResume
+    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"", resumeText:""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [fileName, setFileName] = useState(candidateResume ? "Pre-filled from your candidate submission" : "");
+  const [fileName, setFileName] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
+
+  // On mount: fetch most recent candidate submission resume and pre-fill
+  useEffect(() => {
+    api("GET", "/api/candidates/mine").then(d => {
+      const subs = d.submissions;
+      if (!subs?.length) return;
+      const resume = subs[subs.length - 1]?.candidate?.resume;
+      if (!resume) return;
+      setForm(f => ({ ...f, resumeText: resume }));
+      setFileName("Pre-filled from your candidate submission");
+    }).catch(() => {}); // silently skip if endpoint not available
+  }, []);
 
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
   const valid = form.name && form.role && form.company && form.years && form.areas.length > 0;
