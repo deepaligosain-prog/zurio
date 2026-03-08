@@ -434,13 +434,21 @@ function ReviewerSignup({ user, onDone }) {
 }
 
 function CandidateSignup({ user, onDone }) {
-  const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "", targetRole:"", targetArea:"", resume:"" });
+  const reviewerResume = user?.reviewer?.resumeText || "";
+  const [form, setForm] = useState({
+    name: user?.name || "", email: user?.email || "",
+    targetRole:"", targetArea:"", resume: reviewerResume, label: ""
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [resumeTab, setResumeTab] = useState("upload"); // "upload" | "paste"
-  const [fileName, setFileName] = useState("");
+  const [resumeTab, setResumeTab] = useState(reviewerResume ? "paste" : "upload");
+  const [fileName, setFileName] = useState(reviewerResume ? "Pre-filled from your reviewer profile" : "");
   const [dragOver, setDragOver] = useState(false);
+  const [labelEdited, setLabelEdited] = useState(false);
   const fileRef = useRef(null);
+
+  // Auto-generate label from targetRole unless user has manually edited it
+  const autoLabel = form.targetRole ? `${form.targetRole} Resume` : "";
 
   const valid = form.name && form.email && form.targetRole && form.targetArea && form.resume.trim().length > 50;
 
@@ -469,7 +477,8 @@ function CandidateSignup({ user, onDone }) {
   const handleSubmit = async () => {
     setLoading(true); setError("");
     try {
-      const result = await api("POST", "/api/candidates", form);
+      const payload = { ...form, label: (labelEdited && form.label) ? form.label : autoLabel };
+      const result = await api("POST", "/api/candidates", payload);
       onDone(result);
     } catch(e) { setError(e.message); }
     setLoading(false);
@@ -495,10 +504,25 @@ function CandidateSignup({ user, onDone }) {
       </div>
 
       <div className="field">
-        <label>Your Resume</label>
+        <label>Submission label <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional, helps you tell submissions apart</span></label>
+        <input
+          value={labelEdited ? form.label : autoLabel}
+          onChange={e=>{ setLabelEdited(true); setForm(f=>({...f,label:e.target.value})); }}
+          placeholder={autoLabel || "e.g. PM Resume, EM Resume..."}
+        />
+      </div>
+
+      <div className="field">
+        <label>Resume to review</label>
+        {reviewerResume && !fileName.startsWith("Pre-filled") === false && (
+          <div style={{background:"var(--cream)",border:"1px solid var(--amber)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--ink-muted)",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+            <span>✦</span>
+            <span>Pre-filled from your reviewer profile — upload a different file or edit the text below to replace it.</span>
+          </div>
+        )}
         <div className="resume-tabs">
           <button className={`resume-tab ${resumeTab==="upload"?"active":""}`} onClick={()=>setResumeTab("upload")}>📎 Upload File</button>
-          <button className={`resume-tab ${resumeTab==="paste"?"active":""}`} onClick={()=>setResumeTab("paste")}>📋 Paste Text</button>
+          <button className={`resume-tab ${resumeTab==="paste"?"active":""}`} onClick={()=>setResumeTab("paste")}>📋 Paste / Edit Text</button>
         </div>
 
         {resumeTab === "upload" ? (
@@ -517,9 +541,9 @@ function CandidateSignup({ user, onDone }) {
             {fileName ? (
               <>
                 <div className="upload-icon">✅</div>
-                <div className="upload-label">File loaded</div>
+                <div className="upload-label">Resume loaded</div>
                 <div className="upload-filename">{fileName}</div>
-                <div className="upload-sub" style={{marginTop:6}}>Click to replace</div>
+                <div className="upload-sub" style={{marginTop:6}}>Click to replace with a different file</div>
               </>
             ) : (
               <>
@@ -670,78 +694,59 @@ function InlineReview({ match, onBack, onDone }) {
   );
 }
 
-function CandidateStatus({ candidateId: initialId, onNoProfile }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        let cid = initialId;
-        if (!cid) {
-          const { user } = await api("GET", "/api/me");
-          cid = user?.candidate_id;
-        }
-        if (!cid) { onNoProfile?.(); return; }
-        const d = await api("GET", `/api/candidates/${cid}/status`);
-        setData(d);
-      } catch(e) {
-        setError(e.message);
-      }
-    };
-    load();
-  }, [initialId]);
-
-  if (error) return (
-    <div className="dashboard">
-      <div className="error-banner">{error}</div>
-    </div>
-  );
-  if (!data) return (
-    <div className="thankyou-page">
-      <div className="big-icon" style={{animation:"spin 1s linear infinite"}}>⚙</div>
-      <p style={{color:"var(--ink-muted)",fontSize:14,marginTop:16}}>Loading your status...</p>
-    </div>
-  );
-
-  const { candidate, matches } = data;
-  const match = matches[0];
+function SubmissionCard({ submission }) {
+  const { candidate, matches } = submission;
+  const match = matches?.find(m => m.status !== "waitlist") || matches?.[0];
+  const label = candidate.label || `${candidate.targetRole} Resume`;
 
   return (
-    <div className="status-page">
-      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Candidate Dashboard</div>
-      <h1 className="dash-title">{candidate.name}</h1>
-      <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4,marginBottom:28}}>Targeting: {candidate.targetRole} · {candidate.targetArea}</div>
+    <div className="status-card" style={{marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:8}}>
+        <div>
+          <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:400}}>{label}</div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginTop:3}}>Targeting: {candidate.targetRole} · {candidate.targetArea}</div>
+        </div>
+        {match ? (
+          <span className={`badge ${match.status==="done"?"green":match.status==="waitlist"?"":"amber"}`}>
+            {match.status==="done" ? "✓ Review received" : match.status==="waitlist" ? "📋 Waitlisted" : "⏳ Review pending"}
+          </span>
+        ) : (
+          <span className="badge amber">⏳ Finding reviewer</span>
+        )}
+      </div>
 
-      {!match ? (
-        <div className="status-card" style={{textAlign:"center",padding:"40px 28px"}}>
-          <div style={{fontSize:40,marginBottom:16}}>⏳</div>
-          <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:300,marginBottom:8}}>In the queue</div>
-          <p style={{fontSize:14,color:"var(--ink-muted)"}}>We're finding the right reviewer for your field. We'll email <strong>{candidate.email}</strong> when matched.</p>
+      {(!match || match.status === "waitlist") ? (
+        <div style={{textAlign:"center",padding:"20px 0",borderTop:"1px solid var(--border)"}}>
+          {match?.status === "waitlist" ? (
+            <>
+              <div style={{fontSize:28,marginBottom:8}}>📋</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6}}>All reviewers in your field are at capacity. You're in the queue — we'll email you when a spot opens.</p>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:28,marginBottom:8}}>⏳</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)"}}>Matching you with the right reviewer. We'll email you when ready.</p>
+            </>
+          )}
         </div>
       ) : (
-        <div className="status-card">
-          <div className="match-card-header">
-            <div>
-              <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ink-muted)",marginBottom:6}}>Your Reviewer</div>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div className="avatar amber-bg">?</div>
-                <div className="name-block">
-                  <strong>Anonymous Reviewer</strong>
-                  <span>{match.reviewer?.years}+ years exp · {match.reviewer?.areas?.slice(0,2).join(", ")}</span>
-                </div>
+        <>
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:14}}>
+            <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ink-muted)",marginBottom:8}}>Your Reviewer</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div className="avatar amber-bg">?</div>
+              <div className="name-block">
+                <strong>Anonymous Reviewer</strong>
+                <span>{match.reviewer?.years}+ years exp · {match.reviewer?.areas?.slice(0,2).join(", ")}</span>
               </div>
             </div>
-            <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Review received":"⏳ Review pending"}</span>
           </div>
-
           {match.rationale && (
-            <div className="rationale-box" style={{marginTop:16}}>
+            <div className="rationale-box" style={{marginTop:14}}>
               <div className="rationale-label">Why this match</div>
               <div className="rationale-text">{match.rationale}</div>
             </div>
           )}
-
           {match.feedback && (
             <>
               <div className="divider" />
@@ -749,8 +754,47 @@ function CandidateStatus({ candidateId: initialId, onNoProfile }) {
               <div className="feedback-body">{match.feedback.body}</div>
             </>
           )}
-        </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function CandidateStatus({ onNoProfile, onAddNew }) {
+  const [submissions, setSubmissions] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api("GET", "/api/candidates/mine")
+      .then(d => {
+        if (!d.submissions || d.submissions.length === 0) { onNoProfile?.(); return; }
+        setSubmissions(d.submissions);
+      })
+      .catch(e => setError(e.message));
+  }, []);
+
+  if (error) return <div className="dashboard"><div className="error-banner">{error}</div></div>;
+  if (!submissions) return (
+    <div className="thankyou-page">
+      <div className="big-icon" style={{animation:"spin 1s linear infinite"}}>⚙</div>
+      <p style={{color:"var(--ink-muted)",fontSize:14,marginTop:16}}>Loading your submissions...</p>
+    </div>
+  );
+
+  const firstName = submissions[0]?.candidate?.name?.split(" ")[0] || "there";
+
+  return (
+    <div className="dashboard">
+      <div className="dash-header">
+        <div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Candidate Dashboard</div>
+          <h1 className="dash-title">Hi, {firstName}</h1>
+          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{submissions.length} resume{submissions.length !== 1 ? "s" : ""} submitted</div>
+        </div>
+        <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none"}} onClick={onAddNew}>+ Add Resume</button>
+      </div>
+      <div className="section-label" style={{marginBottom:16}}>Your submissions</div>
+      {submissions.map((s, i) => <SubmissionCard key={i} submission={s} />)}
     </div>
   );
 }
@@ -770,7 +814,7 @@ export default function App() {
 
   const routeUser = (u) => {
     if (!u) { setView("login"); return; }
-    if (!u.reviewer_id && !u.candidate_id) { setView("pick-role"); return; }
+    if (!u.reviewer_id && !(u.candidate_ids?.length)) { setView("pick-role"); return; }
     // Default to whichever profile they have; prefer reviewer if both
     if (u.reviewer_id) setView("reviewer-dashboard");
     else setView("candidate-status");
@@ -778,7 +822,7 @@ export default function App() {
 
   const handleTabSelect = (tab) => {
     if (tab === "reviewer") setView(user?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
-    else setView(user?.candidate_id ? "candidate-status" : "candidate-setup");
+    else setView(user?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
   };
 
   const handleSignOut = async () => {
@@ -826,7 +870,10 @@ export default function App() {
       )}
 
       {view === "candidate-status" && (
-        <CandidateStatus candidateId={user?.candidate_id} onNoProfile={() => setView("candidate-setup")} />
+        <CandidateStatus
+          onNoProfile={() => setView("candidate-setup")}
+          onAddNew={() => setView("candidate-setup")}
+        />
       )}
     </>
   );

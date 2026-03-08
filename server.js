@@ -89,7 +89,7 @@ app.post("/auth/login", (req, res) => {
       picture: null,
       role: null,
       reviewer_id: null,
-      candidate_id: null,
+      candidate_ids: [],
     });
   }
   req.session.userId = user.id;
@@ -105,7 +105,7 @@ app.get("/api/me", (req, res) => {
   const user = { ...findById("users", req.session.userId) };
   if (!user) return res.json({ user: null });
   if (user.reviewer_id) user.reviewer = findById("reviewers", user.reviewer_id);
-  if (user.candidate_id) user.candidate = findById("candidates", user.candidate_id);
+  if (user.candidate_ids?.length) user.candidates = user.candidate_ids.map(id => findById("candidates", id)).filter(Boolean);
   res.json({ user });
 });
 
@@ -171,9 +171,22 @@ app.post("/api/reviewers", requireAuth, (req, res) => {
 app.get("/api/reviewers/:id", requireAuth, (req, res) => {
   const reviewer = findById("reviewers", req.params.id);
   if (!reviewer) return res.status(404).json({ error: "Not found" });
+
+  // Find the user who owns this reviewer profile (for self-match filtering)
+  const reviewerUser = db.users.find(u => u.reviewer_id === reviewer.id);
+
   const matches = db.matches
-    .filter((m) => m.reviewer_id === reviewer.id)
-    .map((m) => ({ ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: findById("candidates", m.candidate_id) }));
+    .filter((m) => m.reviewer_id === reviewer.id && m.status !== "waitlist")
+    .map((m) => {
+      const candidate = findById("candidates", m.candidate_id);
+      // Never show a candidate whose user account is the same person as the reviewer
+      const candidateUser = candidate ? db.users.find(u => u.candidate_ids?.includes(candidate.id)) : null;
+      if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) return null;
+      // Strip resume from candidate summary — reviewer only needs name + targetRole for the card
+      // Full resume is only sent in InlineReview (separate fetch)
+      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume } : null };
+    })
+    .filter(Boolean);
   res.json({ reviewer, matches });
 });
 
@@ -183,22 +196,42 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
   if (!name || !email || !targetRole || !targetArea || !resume)
     return res.status(400).json({ error: "Missing required fields" });
 
-  let candidate = req.user.candidate_id ? findById("candidates", req.user.candidate_id) : null;
-  if (candidate) {
-    Object.assign(candidate, { name, email, targetRole, targetArea, resume });
-    saveDB();
-  } else {
-    candidate = insert("candidates", { name, email, targetRole, targetArea, resume });
-    req.user.candidate_id = candidate.id;
-    req.user.role = "candidate";
-    saveDB();
-  }
+  // Always create a new candidate submission (one user can have multiple)
+  const { label } = req.body; // optional user-override label
+  const candidate = insert("candidates", { name, email, targetRole, targetArea, resume, label: label || "" });
+  if (!req.user.candidate_ids) req.user.candidate_ids = [];
+  req.user.candidate_ids.push(candidate.id);
+  req.user.role = "candidate";
+  saveDB();
 
   // ─── AI Matching ────────────────────────────────────────────────────────────
-  // Build reviewer summaries for Claude — exclude self
-  const eligibleReviewers = db.reviewers.filter(r => r.id !== req.user.reviewer_id);
+  const MAX_ACTIVE_REVIEWS = 3; // max pending reviews per reviewer at once
+
+  // Exclude self; also exclude reviewers already at capacity
+  const reviewerLoad = {}; // reviewer_id -> count of pending matches
+  db.matches.filter(m => m.status === "pending").forEach(m => {
+    reviewerLoad[m.reviewer_id] = (reviewerLoad[m.reviewer_id] || 0) + 1;
+  });
+
+  const eligibleReviewers = db.reviewers.filter(r =>
+    r.id !== req.user.reviewer_id &&
+    (reviewerLoad[r.id] || 0) < MAX_ACTIVE_REVIEWS
+  );
+
+  // Check if candidate is already on waitlist
+  const existingWaitlist = db.matches.find(m => m.candidate_id === candidate.id && m.status === "waitlist");
+  if (existingWaitlist) return res.json({ candidate, match: existingWaitlist, waitlisted: true });
+
+  // No available reviewers → waitlist
+  if (eligibleReviewers.length === 0) {
+    const waitlistMatch = insert("matches", { reviewer_id: null, candidate_id: candidate.id, rationale: "", status: "waitlist" });
+    saveDB();
+    console.log(`[matching] No available reviewers — candidate ${candidate.id} added to waitlist`);
+    return res.json({ candidate, match: waitlistMatch, waitlisted: true });
+  }
+
   const reviewerSummaries = eligibleReviewers.map(r => {
-    let summary = `Reviewer ID ${r.id}: ${r.name}, ${r.role} at ${r.company}, ${r.years} years exp, areas: [${r.areas.join(", ")}].`;
+    let summary = `Reviewer ID ${r.id}: ${r.name}, ${r.role} at ${r.company}, ${r.years} years exp, areas: [${r.areas.join(", ")}]. Active reviews: ${reviewerLoad[r.id] || 0}/${MAX_ACTIVE_REVIEWS}.`;
     if (r.bio) summary += ` Bio: ${r.bio}`;
     if (r.resumeText) summary += `\nFull resume:\n${r.resumeText.slice(0, 1500)}`;
     return summary;
@@ -226,7 +259,7 @@ Field: ${targetArea}
 Resume:
 ${resume.slice(0, 2000)}
 
-Reviewers:
+Reviewers (all have available capacity):
 ${reviewerSummaries}`;
 
   let bestReviewer = null;
@@ -236,28 +269,77 @@ ${reviewerSummaries}`;
     const raw = await callClaude(matchSystem, matchPrompt, 800);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     const ranked = JSON.parse(cleaned);
+    const MIN_MATCH_SCORE = 5; // below this, reviewer is not qualified enough — waitlist instead
+
     if (Array.isArray(ranked) && ranked.length > 0) {
-      // Pick highest scorer, skip reviewers already matched to this candidate
       const alreadyMatched = new Set(
         db.matches.filter(m => m.candidate_id === candidate.id).map(m => m.reviewer_id)
       );
-      const best = ranked.find(r => !alreadyMatched.has(r.reviewer_id)) || ranked[0];
-      bestReviewer = findById("reviewers", best.reviewer_id);
-      rationale = best.reasoning || "";
+      // Only consider reviewers who clear the minimum quality bar
+      const qualified = ranked.filter(r => (r.score || 0) >= MIN_MATCH_SCORE && !alreadyMatched.has(r.reviewer_id));
+      const best = qualified[0]; // already sorted best-first by Claude
+      if (best) {
+        bestReviewer = findById("reviewers", best.reviewer_id);
+        if (bestReviewer) {
+          const areas = bestReviewer.areas?.slice(0,2).join(" and ") || targetArea;
+          const yrs = bestReviewer.years ? `${bestReviewer.years}+ years` : "extensive experience";
+          const company = bestReviewer.company ? ` at ${bestReviewer.company}` : "";
+          rationale = `Your reviewer brings ${yrs} of experience in ${areas}${company}, well-suited to give feedback on a ${targetRole} resume.`;
+        }
+      }
+      // If no reviewer clears the bar, bestReviewer stays null → falls through to waitlist below
     }
   } catch (e) {
     // Fallback to simple area match if Claude fails
-    bestReviewer = db.reviewers.find(r => r.areas?.includes(targetArea)) || db.reviewers[0] || null;
+    bestReviewer = eligibleReviewers.find(r => r.areas?.includes(targetArea)) || eligibleReviewers[0] || null;
     rationale = bestReviewer ? `${bestReviewer.name}'s background in ${bestReviewer.areas?.[0]} aligns with ${targetRole}.` : "";
   }
 
-  if (!bestReviewer) return res.json({ candidate, match: null });
+  if (!bestReviewer) {
+    // Claude returned no valid match despite eligible reviewers — waitlist
+    const waitlistMatch = insert("matches", { reviewer_id: null, candidate_id: candidate.id, rationale: "", status: "waitlist" });
+    saveDB();
+    return res.json({ candidate, match: waitlistMatch, waitlisted: true });
+  }
 
   const existingMatch = db.matches.find(m => m.reviewer_id === bestReviewer.id && m.candidate_id === candidate.id);
   const match = existingMatch || insert("matches", { reviewer_id: bestReviewer.id, candidate_id: candidate.id, rationale, status: "pending" });
   saveDB();
 
+  // Notify reviewer
+  if (!existingMatch) {
+    const reviewerUser = db.users.find(u => u.reviewer_id === bestReviewer.id);
+    if (reviewerUser?.email) {
+      sendEmail({
+        to: reviewerUser.email,
+        subject: "You have a new resume to review on Zurio",
+        html: `<p>Hi ${bestReviewer.name},</p>
+<p>You've been matched with a candidate targeting <strong>${candidate.targetRole}</strong>.</p>
+<p><strong>Why you:</strong> ${rationale || "Your background aligns with their target role."}</p>
+<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>
+<p style="color:#888;font-size:12px">You're receiving this because you signed up as a reviewer on Zurio.</p>`
+      });
+    }
+  }
+
   res.json({ candidate, reviewer: bestReviewer, match, rationale });
+});
+
+// Get all candidate submissions for current user
+app.get("/api/candidates/mine", requireAuth, (req, res) => {
+  const ids = req.user.candidate_ids || [];
+  const submissions = ids.map(id => {
+    const candidate = findById("candidates", id);
+    if (!candidate) return null;
+    const matches = db.matches
+      .filter((m) => m.candidate_id === candidate.id)
+      .map((m) => {
+        const fb = db.feedback.find(f => f.match_id === m.id) || null;
+        return { ...m, reviewer: findById("reviewers", m.reviewer_id), feedback: fb };
+      });
+    return { candidate, matches };
+  }).filter(Boolean);
+  res.json({ submissions });
 });
 
 app.get("/api/candidates/:id/status", requireAuth, (req, res) => {
