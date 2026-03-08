@@ -337,12 +337,15 @@ function RolePicker({ user, onRoleSet }) {
 }
 
 function ReviewerSignup({ user, onDone }) {
+  // Pre-fill resume from most recent candidate submission if available
+  const candidateResume = user?.candidates?.[user.candidates.length - 1]?.resume || "";
   const [form, setForm] = useState({
-    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"", resumeText:""
+    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"",
+    resumeText: candidateResume
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState(candidateResume ? "Pre-filled from your candidate submission" : "");
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
@@ -401,6 +404,12 @@ function ReviewerSignup({ user, onDone }) {
 
       <div className="field">
         <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — improves matching)</span></label>
+        {candidateResume && fileName.startsWith("Pre-filled") && (
+          <div style={{background:"var(--cream)",border:"1px solid var(--amber)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--ink-muted)",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+            <span>✦</span>
+            <span>Pre-filled from your candidate submission — upload a different file to replace it.</span>
+          </div>
+        )}
         <div
           className={`upload-zone ${dragOver?"drag-over":""} ${fileName?"has-file":""}`}
           onClick={() => fileRef.current?.click()}
