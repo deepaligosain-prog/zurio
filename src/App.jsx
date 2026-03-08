@@ -258,36 +258,69 @@ function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
 }
 
 function LoginPage({ onLogin }) {
+  const [mode, setMode] = useState("login"); // "login" or "register"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async () => {
-    if (!name.trim() || !email.trim()) { setError("Please enter your name and email."); return; }
-    setLoading(true); setError("");
+    setError("");
+    if (!email.trim()) { setError("Please enter your email."); return; }
+    if (!password) { setError("Please enter your password."); return; }
+    if (mode === "register") {
+      if (!name.trim()) { setError("Please enter your name."); return; }
+      if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+      if (password !== confirmPassword) { setError("Passwords don't match."); return; }
+    }
+    setLoading(true);
     try {
-      const { user } = await api("POST", "/auth/login", { name, email });
-      onLogin(user);
+      if (mode === "register") {
+        const { user } = await api("POST", "/auth/register", { name, email, password });
+        onLogin(user);
+      } else {
+        const { user } = await api("POST", "/auth/login", { email, password });
+        onLogin(user);
+      }
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
+
+  const onKey = e => e.key === "Enter" && handleSubmit();
 
   return (
     <div className="login-page">
       <div className="login-logo">Zurio</div>
       <p className="login-tagline">Real resume feedback from people who've been in your shoes — matched by field and experience.</p>
       {error && <div className="error-banner" style={{marginBottom:16}}>{error}</div>}
-      <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left"}}>
-        <label>Your name</label>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Deepali Gosain" onKeyDown={e=>e.key==="Enter"&&handleSubmit()} />
+      <div style={{display:"flex",gap:0,marginBottom:20,background:"var(--cream)",borderRadius:10,padding:3,width:"100%",maxWidth:340}}>
+        <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="login"?"white":"transparent",color:mode==="login"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="login"?"var(--shadow)":"none",transition:"all 0.18s"}}>Sign In</button>
+        <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="register"?"white":"transparent",color:mode==="register"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="register"?"var(--shadow)":"none",transition:"all 0.18s"}}>Create Account</button>
       </div>
+      {mode === "register" && (
+        <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left"}}>
+          <label>Your name</label>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Deepali Gosain" onKeyDown={onKey} />
+        </div>
+      )}
       <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
         <label>Email address</label>
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={e=>e.key==="Enter"&&handleSubmit()} />
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={onKey} />
       </div>
+      <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
+        <label>Password</label>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 6 characters":"Enter password"} onKeyDown={onKey} />
+      </div>
+      {mode === "register" && (
+        <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
+          <label>Confirm password</label>
+          <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password" onKeyDown={onKey} />
+        </div>
+      )}
       <button className="submit-btn amber" style={{marginTop:20,width:"100%",maxWidth:340}} onClick={handleSubmit} disabled={loading}>
-        {loading ? <><span className="spinner"/>Signing in...</> : "Get Started →"}
+        {loading ? <><span className="spinner"/>{mode==="register"?"Creating account...":"Signing in..."}</> : mode==="register"?"Create Account →":"Sign In →"}
       </button>
       <p className="login-note">Free to use. Your resume data is private and only shared with your matched reviewer.</p>
     </div>
@@ -338,7 +371,7 @@ function RolePicker({ user, onRoleSet }) {
 
 function ReviewerSignup({ user, onDone }) {
   const [form, setForm] = useState({
-    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"", resumeText:""
+    name: user?.name || "", role:"", company:"", years:"", areas:[], resumeText:""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -361,6 +394,8 @@ function ReviewerSignup({ user, onDone }) {
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
   const valid = form.name && form.role && form.company && form.years && form.areas.length > 0;
 
+  const [extracting, setExtracting] = useState(false);
+
   const readFile = async (file) => {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
@@ -369,6 +404,19 @@ function ReviewerSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resumeText: text }));
+      // Auto-fill form fields from resume via AI
+      setExtracting(true);
+      try {
+        const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
+        setForm(f => ({
+          ...f,
+          role: f.role || info.role || "",
+          company: f.company || info.company || "",
+          years: f.years || info.years || "",
+          areas: f.areas.length > 0 ? f.areas : (info.areas || []),
+        }));
+      } catch(e) { /* silently skip auto-fill on error */ }
+      setExtracting(false);
     } catch(e) {
       setError(e.message);
     }
@@ -409,8 +457,6 @@ function ReviewerSignup({ user, onDone }) {
           ))}
         </div>
       </div>
-      <div className="field"><label>Short bio (optional)</label><textarea rows={3} value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))} placeholder="What makes your perspective valuable?" /></div>
-
       <div className="field">
         <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — improves matching)</span></label>
         {form.resumeText && fileName.startsWith("Pre-filled") && (
@@ -444,7 +490,8 @@ function ReviewerSignup({ user, onDone }) {
         </div>
       </div>
 
-      <button className="submit-btn amber" onClick={handleSubmit} disabled={!valid||loading}>
+      {extracting && <div style={{textAlign:"center",color:"var(--amber)",fontSize:13,marginBottom:8}}><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Auto-filling from your resume...</div>}
+      <button className="submit-btn amber" onClick={handleSubmit} disabled={!valid||loading||extracting}>
         {loading ? <><span className="spinner"/>Saving...</> : "Complete Reviewer Profile →"}
       </button>
     </div>
@@ -470,6 +517,8 @@ function CandidateSignup({ user, onDone }) {
 
   const valid = form.name && form.email && form.targetRole && form.targetArea && form.resume.trim().length > 50;
 
+  const [fileData, setFileData] = useState(null); // { base64, type, name }
+
   const readFile = async (file) => {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
@@ -481,6 +530,13 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
+      // Also read file as base64 for storage
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(",")[1]; // strip data:...;base64, prefix
+        setFileData({ base64, type: file.type || "application/octet-stream", name: file.name });
+      };
+      reader.readAsDataURL(file);
     } catch(e) {
       setError(e.message);
       setResumeTab("paste");
@@ -496,7 +552,12 @@ function CandidateSignup({ user, onDone }) {
     setLoading(true); setError("");
     try {
       const payload = { ...form, label: (labelEdited && form.label) ? form.label : autoLabel };
+      if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
       const result = await api("POST", "/api/candidates", payload);
+      if (result.redactions?.length > 0) {
+        const types = [...new Set(result.redactions.map(r => r.type))];
+        alert(`For your privacy, we automatically redacted ${result.redactions.length} item(s) from your resume: ${types.join(", ")}. Your original file is preserved but the text shared with reviewers has PII removed.`);
+      }
       onDone(result);
     } catch(e) { setError(e.message); }
     setLoading(false);
@@ -643,6 +704,17 @@ function InlineReview({ match, onBack, onDone }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [fileBlobUrl, setFileBlobUrl] = useState(null);
+
+  // Load the original file if available
+  useEffect(() => {
+    if (!match.candidate?.hasFile) return;
+    fetch(`/api/candidates/${match.candidate.id}/file`, { credentials: "include" })
+      .then(r => r.ok ? r.blob() : null)
+      .then(blob => { if (blob) setFileBlobUrl(URL.createObjectURL(blob)); })
+      .catch(() => {});
+    return () => { if (fileBlobUrl) URL.revokeObjectURL(fileBlobUrl); };
+  }, [match.candidate?.id]);
 
   const getAI = async () => {
     setAiLoading(true); setAiText("");
@@ -652,6 +724,18 @@ function InlineReview({ match, onBack, onDone }) {
       setAiText(res.text);
     } catch(e) { setError(e.message); }
     setAiLoading(false);
+  };
+
+  const [aiScore, setAiScore] = useState(null); // { score, suggestion }
+  const [scoring, setScoring] = useState(false);
+
+  const handlePreview = async () => {
+    setScoring(true); setError("");
+    try {
+      const result = await api("POST", "/api/feedback/score", { feedbackText: feedback, candidateTargetRole: match.candidate?.targetRole });
+      setAiScore(result);
+    } catch(e) { setError(e.message); }
+    setScoring(false);
   };
 
   const handleSubmit = async () => {
@@ -679,8 +763,20 @@ function InlineReview({ match, onBack, onDone }) {
       <p style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>Targeting: <strong style={{color:"var(--ink)"}}>{match.candidate?.targetRole}</strong></p>
       <div className="two-col">
         <div className="panel">
-          <div className="panel-header"><span className="panel-title">Candidate Resume</span><span className="badge blue">Confidential</span></div>
-          <div className="panel-body"><div className="resume-text">{match.candidate?.resume}</div></div>
+          <div className="panel-header">
+            <span className="panel-title">Candidate Resume</span>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <span className="badge blue">Confidential</span>
+              {fileBlobUrl && <a href={fileBlobUrl} download={match.candidate?.name ? `${match.candidate.name} Resume.pdf` : "resume.pdf"} className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}}>Download</a>}
+            </div>
+          </div>
+          <div className="panel-body">
+            {fileBlobUrl ? (
+              <iframe src={fileBlobUrl} style={{width:"100%",height:500,border:"none",borderRadius:8}} title="Resume PDF" />
+            ) : (
+              <div className="resume-text">{match.candidate?.resume}</div>
+            )}
+          </div>
         </div>
         <div className="panel">
           <div className="panel-header">
@@ -701,12 +797,67 @@ function InlineReview({ match, onBack, onDone }) {
               </div>
             )}
           </div>
+          {aiScore && (
+            <div style={{padding:"12px 16px",background:aiScore.score>=7?"#e8f5e9":aiScore.score>=5?"#fff8e1":"#fce4ec",borderTop:"1px solid var(--border)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:aiScore.suggestion?6:0}}>
+                <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em",color:aiScore.score>=7?"#2e7d32":aiScore.score>=5?"#f57f17":"#c62828"}}>Quality Score: {aiScore.score}/10</span>
+                {aiScore.score >= 7 && <span style={{fontSize:13}}>Great feedback!</span>}
+              </div>
+              {aiScore.suggestion && <div style={{fontSize:13,color:"var(--ink-light)",lineHeight:1.5}}>{aiScore.suggestion}</div>}
+            </div>
+          )}
           <div className="panel-footer">
-            <button className="action-btn amber-btn" style={{width:"100%",padding:"12px",fontSize:14}} onClick={handleSubmit} disabled={!feedback.trim()||submitting}>
-              {submitting ? <><span className="spinner"/>Sending...</> : "Send Feedback to Candidate →"}
-            </button>
+            {!aiScore ? (
+              <button className="action-btn outline" style={{width:"100%",padding:"12px",fontSize:14}} onClick={handlePreview} disabled={!feedback.trim()||scoring}>
+                {scoring ? <><span className="spinner dark" style={{width:14,height:14}}/>Checking quality...</> : "Preview & Score Feedback"}
+              </button>
+            ) : (
+              <div style={{display:"flex",gap:8}}>
+                <button className="action-btn outline" style={{flex:1,padding:"12px",fontSize:13}} onClick={()=>setAiScore(null)}>Edit & Re-score</button>
+                <button className="action-btn amber-btn" style={{flex:2,padding:"12px",fontSize:14}} onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? <><span className="spinner"/>Sending...</> : "Send Feedback to Candidate →"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedbackRating({ feedback }) {
+  const [rating, setRating] = useState(feedback.candidateRating || 0);
+  const [hover, setHover] = useState(0);
+  const [submitted, setSubmitted] = useState(!!feedback.candidateRating);
+  const [saving, setSaving] = useState(false);
+
+  const submitRating = async (stars) => {
+    setRating(stars); setSaving(true);
+    try {
+      await api("POST", `/api/feedback/${feedback.id}/rating`, { rating: stars });
+      setSubmitted(true);
+    } catch(e) { /* silently fail */ }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+      <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ink-muted)",marginBottom:8}}>
+        {submitted ? "Your rating" : "Rate this feedback"}
+      </div>
+      <div style={{display:"flex",gap:4,alignItems:"center"}}>
+        {[1,2,3,4,5].map(s => (
+          <span key={s}
+            onClick={() => !submitted && submitRating(s)}
+            onMouseEnter={() => !submitted && setHover(s)}
+            onMouseLeave={() => !submitted && setHover(0)}
+            style={{fontSize:22,cursor:submitted?"default":"pointer",opacity:s<=(hover||rating)?1:0.3,transition:"opacity 0.15s"}}>
+            {s <= (hover || rating) ? "★" : "☆"}
+          </span>
+        ))}
+        {submitted && <span style={{fontSize:12,color:"var(--ink-muted)",marginLeft:8}}>Thanks for rating!</span>}
+        {saving && <span className="spinner dark" style={{width:12,height:12,marginLeft:8}}/>}
       </div>
     </div>
   );
@@ -770,6 +921,7 @@ function SubmissionCard({ submission }) {
               <div className="divider" />
               <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--green)",marginBottom:12}}>✓ Feedback received</div>
               <div className="feedback-body">{match.feedback.body}</div>
+              <FeedbackRating feedback={match.feedback} />
             </>
           )}
         </>
