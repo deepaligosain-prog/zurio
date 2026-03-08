@@ -1,12 +1,10 @@
-// server.js — Zurio with Google OAuth
+// server.js — Zurio
 import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import session from "express-session";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -14,16 +12,14 @@ const PORT = process.env.PORT || 3001;
 const DB_FILE = path.join(__dirname, "zurio-data.json");
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
-// ─── CORS (must allow credentials from Vite) ──────────────────────────────────
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
 
-// ─── Session ──────────────────────────────────────────────────────────────────
 app.use(session({
   secret: process.env.SESSION_SECRET || "zurio-dev-secret-change-in-prod",
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
+  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
 // ─── JSON DB ──────────────────────────────────────────────────────────────────
@@ -64,66 +60,41 @@ function findByField(table, field, value) {
 
 loadDB();
 console.log("✅ Zurio database ready");
-console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID?.slice(0, 20) + "...");
-
-// ─── Passport ─────────────────────────────────────────────────────────────────
-passport.use(new GoogleStrategy(
-  {
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.SERVER_URL ? `${process.env.SERVER_URL}/auth/google/callback` : `http://localhost:${PORT}/auth/google/callback`,
-  },
-  (accessToken, refreshToken, profile, done) => {
-    const googleId = profile.id;
-    let user = findByField("users", "googleId", googleId);
-    if (!user) {
-      user = insert("users", {
-        googleId,
-        email: profile.emails?.[0]?.value || "",
-        name: profile.displayName || "",
-        picture: profile.photos?.[0]?.value || "",
-        role: null,       // null = hasn't chosen yet
-        reviewer_id: null,
-        candidate_id: null,
-      });
-    }
-    return done(null, user);
-  }
-));
-
-passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser((id, done) => {
-  const user = findById("users", id);
-  done(null, user || false);
-});
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
-  if (req.isAuthenticated()) return next();
+  if (req.session?.userId) return next();
   res.status(401).json({ error: "Not authenticated" });
 }
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
-app.get("/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-
-app.get("/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: `${CLIENT_URL}?auth=error` }),
-  (req, res) => res.redirect(`${CLIENT_URL}?auth=success`)
-);
+app.post("/auth/login", (req, res) => {
+  const { name, email } = req.body;
+  if (!name || !email) return res.status(400).json({ error: "Name and email required" });
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = findByField("users", "email", normalizedEmail);
+  if (!user) {
+    user = insert("users", {
+      email: normalizedEmail,
+      name: name.trim(),
+      picture: null,
+      role: null,
+      reviewer_id: null,
+      candidate_id: null,
+    });
+  }
+  req.session.userId = user.id;
+  res.json({ user });
+});
 
 app.post("/auth/logout", (req, res) => {
-  req.logout(() => res.json({ ok: true }));
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
 app.get("/api/me", (req, res) => {
-  if (!req.isAuthenticated()) return res.json({ user: null });
-  // Attach linked reviewer/candidate records
-  const user = { ...req.user };
+  if (!req.session?.userId) return res.json({ user: null });
+  const user = { ...findById("users", req.session.userId) };
+  if (!user) return res.json({ user: null });
   if (user.reviewer_id) user.reviewer = findById("reviewers", user.reviewer_id);
   if (user.candidate_id) user.candidate = findById("candidates", user.candidate_id);
   res.json({ user });
