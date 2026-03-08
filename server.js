@@ -65,6 +65,31 @@ function findByField(table, field, value) {
 }
 
 loadDB();
+
+// On startup: remove any self-matches created before the self-match fix
+{
+  const selfMatchIds = new Set();
+  db.matches.forEach(m => {
+    if (!m.candidate_id || !m.reviewer_id) return;
+    const candidate = findById("candidates", m.candidate_id);
+    const reviewer = findById("reviewers", m.reviewer_id);
+    if (!candidate || !reviewer) return;
+    const candidateUser = db.users.find(u =>
+      u.candidate_ids?.includes(candidate.id) || u.candidate_id === candidate.id
+    );
+    const reviewerUser = db.users.find(u => u.reviewer_id === reviewer.id);
+    if (candidateUser && reviewerUser && candidateUser.id === reviewerUser.id) {
+      selfMatchIds.add(m.id);
+      console.log(`[startup] Removing self-match: match ${m.id}, user ${candidateUser.id} (${candidateUser.email})`);
+    }
+  });
+  if (selfMatchIds.size > 0) {
+    db.matches = db.matches.filter(m => !selfMatchIds.has(m.id));
+    saveDB();
+    console.log(`[startup] Cleaned up ${selfMatchIds.size} self-match(es)`);
+  }
+}
+
 console.log("✅ Zurio database ready");
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
@@ -208,15 +233,23 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
   const MAX_ACTIVE_REVIEWS = 3; // max pending reviews per reviewer at once
 
   // Exclude self; also exclude reviewers already at capacity
-  const reviewerLoad = {}; // reviewer_id -> count of pending matches
+  const reviewerLoad = {};
   db.matches.filter(m => m.status === "pending").forEach(m => {
     reviewerLoad[m.reviewer_id] = (reviewerLoad[m.reviewer_id] || 0) + 1;
   });
 
-  const eligibleReviewers = db.reviewers.filter(r =>
-    r.id !== req.user.reviewer_id &&
-    (reviewerLoad[r.id] || 0) < MAX_ACTIVE_REVIEWS
-  );
+  // Find the user account that owns this reviewer profile (by reviewer_id)
+  // We exclude any reviewer whose owning user is the same person submitting the candidate
+  const getReviewerOwner = (reviewerId) => db.users.find(u => u.reviewer_id === reviewerId);
+
+  const eligibleReviewers = db.reviewers.filter(r => {
+    // Capacity check
+    if ((reviewerLoad[r.id] || 0) >= MAX_ACTIVE_REVIEWS) return false;
+    // Self-match check: exclude if the reviewer's user account is the same as the candidate's
+    const reviewerOwner = getReviewerOwner(r.id);
+    if (reviewerOwner && reviewerOwner.id === req.user.id) return false;
+    return true;
+  });
 
   // Check if candidate is already on waitlist
   const existingWaitlist = db.matches.find(m => m.candidate_id === candidate.id && m.status === "waitlist");
