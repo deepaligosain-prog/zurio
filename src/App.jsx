@@ -836,9 +836,13 @@ export default function App() {
     else setView("candidate-status");
   };
 
-  const handleTabSelect = (tab) => {
-    if (tab === "reviewer") setView(user?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
-    else setView(user?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
+  const handleTabSelect = async (tab) => {
+    if (tab === "reviewer") {
+      const fresh = await refreshUser(); // ensure candidates[] is loaded before reviewer form mounts
+      setView(fresh?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
+    } else {
+      setView(user?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
+    }
   };
 
   const handleSignOut = async () => {
@@ -868,7 +872,8 @@ export default function App() {
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
 
       {view === "pick-role" && user && (
-        <RolePicker user={user} onRoleSet={(role) => {
+        <RolePicker user={user} onRoleSet={async (role) => {
+          await refreshUser();
           setView(role === "reviewer" ? "reviewer-setup" : "candidate-setup");
         }} />
       )}
