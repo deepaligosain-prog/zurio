@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3001;
 const DB_FILE = path.join(__dirname, "zurio-data.json");
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
+app.set("trust proxy", 1);
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json());
 
