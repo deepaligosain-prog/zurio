@@ -1,0 +1,36 @@
+services:
+  # Express API server
+  - type: web
+    name: zurio-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false   # you'll paste this in the Render dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false   # set to your frontend URL e.g. https://zurio.onrender.com
+      - key: SERVER_URL
+        sync: false   # set to your API URL e.g. https://zurio-api.onrender.com
+
+  # React frontend (static site)
+  - type: web
+    name: zurio
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false   # set to your API URL e.g. https://zurio-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
