@@ -69,8 +69,11 @@ console.log("✅ Zurio database ready");
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
-  if (req.session?.userId) return next();
-  res.status(401).json({ error: "Not authenticated" });
+  if (!req.session?.userId) return res.status(401).json({ error: "Not authenticated" });
+  const user = findByField("users", "id", req.session.userId);
+  if (!user) return res.status(401).json({ error: "User not found" });
+  req.user = user;
+  next();
 }
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
