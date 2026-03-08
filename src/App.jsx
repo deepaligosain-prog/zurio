@@ -169,6 +169,8 @@ const style = `
 `;
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
+
+const EXPERTISE_AREAS = [
   "Software Engineering","Product Management","Data Science","Design",
   "Marketing","Finance","Operations","Sales","People & HR","Legal",
   "Executive Leadership","AI/ML",
