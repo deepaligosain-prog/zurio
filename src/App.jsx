@@ -1,0 +1,819 @@
+// src/App.jsx — Zurio with Google Auth
+
+import { useState, useEffect, useRef } from "react";
+
+const style = `
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --cream: #F4EFE6; --ink: #1C1917; --ink-light: #44403C; --ink-muted: #78716C;
+    --amber: #D97706; --amber-light: #FEF3C7; --green: #15803D; --green-light: #DCFCE7;
+    --blue: #1D4ED8; --blue-light: #DBEAFE; --border: rgba(28,25,23,0.12);
+    --shadow: 0 1px 3px rgba(28,25,23,0.08), 0 4px 16px rgba(28,25,23,0.06);
+    --shadow-lg: 0 8px 32px rgba(28,25,23,0.14);
+  }
+  body { background: var(--cream); font-family: 'Instrument Sans', sans-serif; color: var(--ink); min-height: 100vh; }
+  .serif { font-family: 'Fraunces', serif; } .mono { font-family: 'DM Mono', monospace; }
+  .top-nav { padding: 18px 32px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: var(--cream); position: sticky; top: 0; z-index: 10; }
+  .nav-wordmark { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 300; cursor: pointer; }
+  .nav-wordmark span { color: var(--amber); }
+  .nav-user { display: flex; align-items: center; gap: 10px; }
+  .nav-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+  .nav-name { font-size: 13px; color: var(--ink-muted); }
+  .nav-signout { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--ink-muted); cursor: pointer; background: none; border: none; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; }
+  .nav-signout:hover { color: var(--ink); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab { font-size: 12px; font-family: 'DM Mono', monospace; cursor: pointer; background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 14px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.08em; transition: all 0.15s; }
+  .nav-tab:hover { border-color: var(--amber); color: var(--amber); }
+  .nav-tab.active-amber { background: var(--amber-light); border-color: var(--amber); color: var(--amber); font-weight: 600; }
+  .nav-tab.active-blue { background: var(--blue-light); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+
+  /* Login screen */
+  .login-page { max-width: 440px; margin: 0 auto; padding: 100px 24px 80px; text-align: center; }
+  .login-logo { font-family: 'Fraunces', serif; font-size: 42px; font-weight: 300; margin-bottom: 12px; }
+  .login-logo span { color: var(--amber); }
+  .login-tagline { font-size: 16px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 48px; max-width: 320px; margin-left: auto; margin-right: auto; }
+  .google-btn { display: inline-flex; align-items: center; gap: 12px; padding: 13px 24px; background: white; border: 1.5px solid var(--border); border-radius: 12px; font-size: 15px; font-weight: 600; color: var(--ink); cursor: pointer; transition: all 0.18s; text-decoration: none; box-shadow: var(--shadow); }
+  .google-btn:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); border-color: rgba(28,25,23,0.2); }
+  .google-icon { width: 20px; height: 20px; }
+  .login-note { font-size: 12px; color: var(--ink-muted); margin-top: 20px; line-height: 1.6; }
+
+  /* Role picker */
+  .role-page { max-width: 560px; margin: 0 auto; padding: 80px 24px; text-align: center; }
+  .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 40px; }
+  @media (max-width: 480px) { .role-grid { grid-template-columns: 1fr; } }
+  .role-card { background: white; border: 2px solid var(--border); border-radius: 16px; padding: 32px 24px; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .role-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .role-card.reviewer:hover { border-color: var(--amber); }
+  .role-card.candidate:hover { border-color: var(--blue); }
+  .role-icon { font-size: 36px; margin-bottom: 14px; }
+  .role-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 400; margin-bottom: 8px; }
+  .role-desc { font-size: 13px; color: var(--ink-muted); line-height: 1.55; }
+
+  /* Candidate status */
+  .status-page { max-width: 640px; margin: 0 auto; padding: 48px 24px 80px; }
+  .status-card { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px; margin-top: 24px; box-shadow: var(--shadow); }
+  .status-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+
+  /* Common */
+  .landing { max-width: 900px; margin: 0 auto; padding: 60px 24px 80px; }
+  .landing-header { text-align: center; margin-bottom: 60px; }
+  .wordmark { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--amber); margin-bottom: 24px; }
+  .landing-title { font-family: 'Fraunces', serif; font-size: clamp(36px,6vw,64px); font-weight: 300; line-height: 1.08; margin-bottom: 20px; }
+  .landing-title em { font-style: italic; color: var(--amber); }
+  .landing-subtitle { font-size: 17px; color: var(--ink-muted); line-height: 1.65; max-width: 480px; margin: 0 auto; }
+  .path-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 48px; }
+  @media (max-width: 600px) { .path-grid { grid-template-columns: 1fr; } }
+  .path-card { background: white; border: 1.5px solid var(--border); border-radius: 18px; padding: 36px 30px; cursor: pointer; transition: all 0.22s ease; text-align: left; position: relative; overflow: hidden; }
+  .path-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+  .path-card.reviewer::before { background: var(--amber); }
+  .path-card.candidate::before { background: var(--blue); }
+  .path-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: transparent; }
+  .path-icon { font-size: 30px; margin-bottom: 16px; }
+  .path-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 8px; }
+  .path-title { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 400; margin-bottom: 10px; }
+  .path-desc { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
+  .path-cta { margin-top: 20px; font-size: 13px; font-weight: 600; display: inline-block; }
+  .reviewer .path-cta { color: var(--amber); } .candidate .path-cta { color: var(--blue); }
+  .stats-row { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-num { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 300; }
+  .stat-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); margin-top: 2px; }
+  .form-page { max-width: 560px; margin: 0 auto; padding: 48px 24px 80px; }
+  .back-btn { display: inline-flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); cursor: pointer; margin-bottom: 40px; background: none; border: none; padding: 0; }
+  .back-btn:hover { color: var(--ink); }
+  .form-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 12px; }
+  .form-eyebrow.amber { color: var(--amber); } .form-eyebrow.blue { color: var(--blue); }
+  .form-heading { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 300; line-height: 1.15; margin-bottom: 8px; }
+  .form-subheading { font-size: 15px; color: var(--ink-muted); margin-bottom: 36px; line-height: 1.6; }
+  .field { margin-bottom: 20px; }
+  .field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-light); margin-bottom: 6px; text-transform: uppercase; }
+  .field input, .field textarea, .field select { width: 100%; background: white; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 15px; font-family: 'Instrument Sans', sans-serif; color: var(--ink); outline: none; transition: border-color 0.15s, box-shadow 0.15s; resize: none; }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(217,119,6,0.1); }
+  .field textarea { line-height: 1.55; }
+  .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.18s; background: white; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--blue); background: var(--blue-light); }
+  .upload-zone.has-file { border-color: var(--green); background: var(--green-light); border-style: solid; }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-label { font-size: 14px; font-weight: 600; color: var(--ink-light); margin-bottom: 4px; }
+  .upload-sub { font-size: 12px; color: var(--ink-muted); }
+  .upload-filename { font-size: 13px; font-weight: 600; color: var(--green); margin-top:6px; }
+  .resume-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .resume-tab { flex: 1; padding: 8px; font-size: 12px; font-weight: 600; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; background: white; border: none; color: var(--ink-muted); transition: all 0.14s; }
+  .resume-tab.active { background: var(--ink); color: white; }
+  .two-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--border); background: white; font-size: 13px; cursor: pointer; transition: all 0.14s; color: var(--ink-light); font-family: 'Instrument Sans', sans-serif; }
+  .chip.active-amber { background: var(--amber-light); border-color: var(--amber); color: var(--amber); font-weight: 600; }
+  .chip.active-blue { background: var(--blue-light); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+  .submit-btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.18s; font-family: 'Instrument Sans', sans-serif; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .submit-btn.amber { background: var(--amber); color: white; }
+  .submit-btn.blue { background: var(--blue); color: white; }
+  .submit-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+  .submit-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .thankyou-page { max-width: 500px; margin: 0 auto; padding: 80px 24px; text-align: center; }
+  .big-icon { font-size: 56px; margin-bottom: 24px; }
+  .thankyou-title { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 300; margin-bottom: 12px; }
+  .thankyou-sub { font-size: 16px; color: var(--ink-muted); line-height: 1.65; margin-bottom: 32px; }
+  .dashboard { max-width: 820px; margin: 0 auto; padding: 48px 24px 80px; }
+  .dash-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; flex-wrap: wrap; gap: 16px; }
+  .dash-title { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 300; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 999px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500; }
+  .badge.amber { background: var(--amber-light); color: var(--amber); }
+  .badge.green { background: var(--green-light); color: var(--green); }
+  .badge.blue { background: var(--blue-light); color: var(--blue); }
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 16px; }
+  .match-card { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: var(--shadow); }
+  .match-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+  .match-names { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 16px; flex-shrink: 0; }
+  .avatar.amber-bg { background: var(--amber-light); color: var(--amber); }
+  .avatar.blue-bg { background: var(--blue-light); color: var(--blue); }
+  .avatar img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+  .name-block strong { font-size: 14px; font-weight: 600; display: block; }
+  .name-block span { font-size: 12px; color: var(--ink-muted); }
+  .match-arrow { color: var(--border); font-size: 20px; }
+  .rationale-box { background: var(--cream); border-left: 3px solid var(--amber); border-radius: 0 10px 10px 0; padding: 12px 16px; margin-bottom: 20px; }
+  .rationale-label { font-family: 'DM Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--amber); margin-bottom: 5px; }
+  .rationale-text { font-size: 13px; color: var(--ink-light); line-height: 1.65; }
+  .action-btn { padding: 10px 18px; border-radius: 8px; border: 1.5px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: 'Instrument Sans', sans-serif; }
+  .action-btn.amber-btn { background: var(--amber); color: white; border-color: var(--amber); }
+  .action-btn.blue-btn { background: var(--blue); color: white; border-color: var(--blue); }
+  .action-btn.outline { background: white; border-color: var(--border); color: var(--ink-light); }
+  .action-btn:hover { opacity: 0.85; }
+  .review-page { max-width: 920px; margin: 0 auto; padding: 48px 24px 80px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+  @media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+  .panel { background: white; border: 1.5px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .panel-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .panel-title { font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); }
+  .panel-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+  .resume-text { font-size: 12.5px; color: var(--ink-light); line-height: 1.8; white-space: pre-wrap; max-height: 440px; overflow-y: auto; }
+  .feedback-textarea { width: 100%; flex: 1; min-height: 200px; border: none; outline: none; font-size: 14px; font-family: 'Instrument Sans', sans-serif; color: var(--ink); line-height: 1.7; resize: none; background: transparent; }
+  .ai-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; border: 1.5px solid var(--border); background: var(--cream); font-size: 12px; font-weight: 500; cursor: pointer; color: var(--ink-light); transition: all 0.14s; font-family: 'Instrument Sans', sans-serif; }
+  .ai-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-light); }
+  .ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ai-suggestion { background: var(--amber-light); border: 1px dashed var(--amber); border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+  .ai-suggestion-label { font-family: 'DM Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--amber); margin-bottom: 8px; }
+  .ai-suggestion-text { font-size: 13px; color: var(--ink-light); line-height: 1.7; white-space: pre-wrap; }
+  .panel-footer { padding: 12px 20px; border-top: 1px solid var(--border); flex-shrink: 0; }
+  .error-banner { background: #FEE2E2; border: 1px solid #FECACA; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #B91C1C; margin-bottom: 16px; line-height: 1.55; }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.35); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  .spinner.dark { border-color: rgba(28,25,23,0.2); border-top-color: var(--amber); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .feedback-body { font-size: 15px; color: var(--ink-light); line-height: 1.8; white-space: pre-wrap; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+`;
+
+const EXPERTISE_AREAS = [
+  "Software Engineering","Product Management","Data Science","Design",
+  "Marketing","Finance","Operations","Sales","People & HR","Legal",
+  "Executive Leadership","AI/ML",
+];
+
+// ─── API helpers ──────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    credentials: "include",
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "API error");
+  return data;
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
+  const isReviewer = currentView === "reviewer-dashboard" || currentView === "reviewer-setup";
+  const isCandidate = currentView === "candidate-status" || currentView === "candidate-setup";
+  return (
+    <nav className="top-nav">
+      <div className="nav-wordmark" onClick={onHome}>Zurio</div>
+      {user ? (
+        <div className="nav-user">
+          <div className="nav-tabs">
+            <button
+              className={`nav-tab ${isReviewer ? "active-amber" : ""}`}
+              onClick={() => onTabSelect("reviewer")}
+            >Reviewer</button>
+            <button
+              className={`nav-tab ${isCandidate ? "active-blue" : ""}`}
+              onClick={() => onTabSelect("candidate")}
+            >Candidate</button>
+          </div>
+          {user.picture
+            ? <img className="nav-avatar" src={user.picture} alt={user.name} referrerPolicy="no-referrer" />
+            : <div className="avatar amber-bg" style={{width:30,height:30,fontSize:13}}>{user.name?.[0]}</div>
+          }
+          <span className="nav-name">{user.name?.split(" ")[0]}</span>
+          <button className="nav-signout" onClick={onSignOut}>Sign out</button>
+        </div>
+      ) : (
+        <span className="mono" style={{fontSize:10,color:"var(--ink-muted)",letterSpacing:"0.12em"}}>BETA</span>
+      )}
+    </nav>
+  );
+}
+
+function LoginPage() {
+  return (
+    <div className="login-page">
+      <div className="login-logo">Zurio</div>
+      <p className="login-tagline">Real resume feedback from people who've been in your shoes — matched by field and experience.</p>
+      <a href="http://localhost:3001/auth/google" className="google-btn">
+        <svg className="google-icon" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Continue with Google
+      </a>
+      <p className="login-note">Free to use. Your resume data is private and only shared with your matched reviewer.</p>
+    </div>
+  );
+}
+
+function RolePicker({ user, onRoleSet }) {
+  const [loading, setLoading] = useState(false);
+
+  const pick = async (role) => {
+    setLoading(role);
+    await api("POST", "/api/me/role", { role });
+    onRoleSet(role);
+    setLoading(false);
+  };
+
+  const hasReviewer = !!user?.reviewer_id;
+  const hasCandidate = !!user?.candidate_id;
+
+  return (
+    <div className="role-page">
+      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:10}}>Welcome, {user.name?.split(" ")[0]} 👋</div>
+      <h1 className="form-heading serif" style={{textAlign:"center"}}>
+        {hasReviewer || hasCandidate ? "Join as the other role too?" : "How are you using Zurio?"}
+      </h1>
+      <p style={{fontSize:15,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>You can be both a reviewer and a candidate.</p>
+      <div className="role-grid">
+        {!hasReviewer && (
+          <div className="role-card reviewer" onClick={() => !loading && pick("reviewer")}>
+            <div className="role-icon">🎓</div>
+            <div className="role-title">I'm a Reviewer</div>
+            <p className="role-desc">I have experience to share and want to give feedback on resumes.</p>
+            {loading === "reviewer" && <div style={{marginTop:12}}><span className="spinner dark" style={{width:14,height:14}}/></div>}
+          </div>
+        )}
+        {!hasCandidate && (
+          <div className="role-card candidate" onClick={() => !loading && pick("candidate")}>
+            <div className="role-icon">📄</div>
+            <div className="role-title">I'm a Candidate</div>
+            <p className="role-desc">I'm job searching and want an expert to review my resume.</p>
+            {loading === "candidate" && <div style={{marginTop:12}}><span className="spinner dark" style={{width:14,height:14}}/></div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReviewerSignup({ user, onDone }) {
+  const [form, setForm] = useState({
+    name: user?.name || "", role:"", company:"", years:"", areas:[], bio:"", resumeText:""
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
+  const valid = form.name && form.role && form.company && form.years && form.areas.length > 0;
+
+  const readFile = (file) => {
+    if (!file) return;
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["pdf","doc","docx","txt"].includes(ext)) { setError("Please upload a PDF, Word (.docx), or .txt file."); return; }
+    setError(""); setFileName(file.name);
+    const reader = new FileReader();
+    if (ext === "txt") {
+      reader.onload = (e) => setForm(f => ({ ...f, resumeText: e.target.result }));
+      reader.readAsText(file);
+    } else {
+      reader.onload = (e) => {
+        const raw = new Uint8Array(e.target.result);
+        let text = "";
+        for (let i = 0; i < raw.length; i++) {
+          const c = raw[i];
+          if ((c >= 32 && c < 127) || c === 10 || c === 13) text += String.fromCharCode(c);
+        }
+        text = text.replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+        if (text.length < 30) { setError("Couldn't extract text from this file. The profile info you entered will still be used for matching."); return; }
+        setForm(f => ({ ...f, resumeText: text }));
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true); setError("");
+    try {
+      const { reviewer } = await api("POST", "/api/reviewers", form);
+      onDone(reviewer);
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="form-page">
+      <div className="form-eyebrow amber">Reviewer profile</div>
+      <h1 className="form-heading">Tell us about<br/>your experience</h1>
+      <p className="form-subheading">This helps us match you with the right candidates. Takes ~10 min per review.</p>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="field"><label>Full name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></div>
+      <div className="two-inputs">
+        <div className="field"><label>Current role</label><input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="Senior Engineer" /></div>
+        <div className="field"><label>Company</label><input value={form.company} onChange={e=>setForm(f=>({...f,company:e.target.value}))} placeholder="Acme Corp" /></div>
+      </div>
+      <div className="field">
+        <label>Years of experience</label>
+        <select value={form.years} onChange={e=>setForm(f=>({...f,years:e.target.value}))}>
+          <option value="">Select range...</option>
+          {["1–3","4–6","7–10","10–15","15+"].map(y=><option key={y} value={y}>{y} years</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label>Areas you can review</label>
+        <div className="chip-row" style={{marginTop:6}}>
+          {EXPERTISE_AREAS.map(a=>(
+            <button key={a} className={`chip ${form.areas.includes(a)?"active-amber":""}`} onClick={()=>toggleArea(a)}>{a}</button>
+          ))}
+        </div>
+      </div>
+      <div className="field"><label>Short bio (optional)</label><textarea rows={3} value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))} placeholder="What makes your perspective valuable?" /></div>
+
+      <div className="field">
+        <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — improves matching)</span></label>
+        <div
+          className={`upload-zone ${dragOver?"drag-over":""} ${fileName?"has-file":""}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+          onDragLeave={()=>setDragOver(false)}
+          onDrop={e=>{e.preventDefault();setDragOver(false);readFile(e.dataTransfer.files[0]);}}
+        >
+          <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" style={{display:"none"}} onChange={e=>readFile(e.target.files[0])} />
+          {fileName ? (
+            <>
+              <div className="upload-icon">✅</div>
+              <div className="upload-label">File loaded</div>
+              <div className="upload-filename">{fileName}</div>
+              <div className="upload-sub" style={{marginTop:6}}>Click to replace</div>
+            </>
+          ) : (
+            <>
+              <div className="upload-icon">📎</div>
+              <div className="upload-label">Drop your resume or LinkedIn PDF here</div>
+              <div className="upload-sub">PDF, Word (.docx), or .txt · Click to browse · Optional</div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <button className="submit-btn amber" onClick={handleSubmit} disabled={!valid||loading}>
+        {loading ? <><span className="spinner"/>Saving...</> : "Complete Reviewer Profile →"}
+      </button>
+    </div>
+  );
+}
+
+function CandidateSignup({ user, onDone }) {
+  const [form, setForm] = useState({ name: user?.name || "", email: user?.email || "", targetRole:"", targetArea:"", resume:"" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [resumeTab, setResumeTab] = useState("upload"); // "upload" | "paste"
+  const [fileName, setFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const valid = form.name && form.email && form.targetRole && form.targetArea && form.resume.trim().length > 50;
+
+  const readFile = (file) => {
+    if (!file) return;
+    const name = file.name;
+    const ext = name.split(".").pop().toLowerCase();
+    if (!["pdf", "doc", "docx", "txt"].includes(ext)) {
+      setError("Please upload a PDF, Word (.docx), or .txt file.");
+      return;
+    }
+    setError("");
+    setFileName(name);
+    // For txt files read directly; for PDF/Word extract via text reader
+    const reader = new FileReader();
+    if (ext === "txt") {
+      reader.onload = (e) => setForm(f => ({ ...f, resume: e.target.result }));
+      reader.readAsText(file);
+    } else {
+      // PDF and Word: read as text (best effort — plain text extraction)
+      reader.onload = (e) => {
+        // Strip binary noise, keep printable chars
+        const raw = new Uint8Array(e.target.result);
+        let text = "";
+        for (let i = 0; i < raw.length; i++) {
+          const c = raw[i];
+          if ((c >= 32 && c < 127) || c === 10 || c === 13) text += String.fromCharCode(c);
+        }
+        // Clean up runs of whitespace
+        text = text.replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+        if (text.length < 50) {
+          setError("Couldn't extract text from this file. Please paste your resume as text instead.");
+          setResumeTab("paste");
+          return;
+        }
+        setForm(f => ({ ...f, resume: text }));
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setDragOver(false);
+    readFile(e.dataTransfer.files[0]);
+  };
+
+  const handleSubmit = async () => {
+    setLoading(true); setError("");
+    try {
+      const result = await api("POST", "/api/candidates", form);
+      onDone(result);
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="form-page">
+      <div className="form-eyebrow blue">Candidate profile</div>
+      <h1 className="form-heading">Submit your resume<br/>for review</h1>
+      <p className="form-subheading">We'll match you with a volunteer in your target field. Expect feedback within 48 hours.</p>
+      {error && <div className="error-banner">{error}</div>}
+      <div className="field"><label>Full name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></div>
+      <div className="field"><label>Email address</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} /></div>
+      <div className="two-inputs">
+        <div className="field"><label>Target role</label><input value={form.targetRole} onChange={e=>setForm(f=>({...f,targetRole:e.target.value}))} placeholder="e.g. Staff Engineer" /></div>
+        <div className="field">
+          <label>Field / Area</label>
+          <select value={form.targetArea} onChange={e=>setForm(f=>({...f,targetArea:e.target.value}))}>
+            <option value="">Select...</option>
+            {EXPERTISE_AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Your Resume</label>
+        <div className="resume-tabs">
+          <button className={`resume-tab ${resumeTab==="upload"?"active":""}`} onClick={()=>setResumeTab("upload")}>📎 Upload File</button>
+          <button className={`resume-tab ${resumeTab==="paste"?"active":""}`} onClick={()=>setResumeTab("paste")}>📋 Paste Text</button>
+        </div>
+
+        {resumeTab === "upload" ? (
+          <div
+            className={`upload-zone ${dragOver?"drag-over":""} ${fileName?"has-file":""}`}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+            onDragLeave={()=>setDragOver(false)}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt"
+              style={{display:"none"}}
+              onChange={e=>readFile(e.target.files[0])}
+            />
+            {fileName ? (
+              <>
+                <div className="upload-icon">✅</div>
+                <div className="upload-label">File loaded</div>
+                <div className="upload-filename">{fileName}</div>
+                <div className="upload-sub" style={{marginTop:6}}>Click to replace</div>
+              </>
+            ) : (
+              <>
+                <div className="upload-icon">📄</div>
+                <div className="upload-label">Drop your resume here</div>
+                <div className="upload-sub">PDF, Word (.docx), or .txt · Click to browse</div>
+              </>
+            )}
+          </div>
+        ) : (
+          <textarea rows={11} value={form.resume} onChange={e=>setForm(f=>({...f,resume:e.target.value}))} placeholder="Paste your resume text here..." style={{width:"100%",background:"white",border:"1.5px solid var(--border)",borderRadius:10,padding:"12px 14px",fontSize:15,fontFamily:"'Instrument Sans',sans-serif",color:"var(--ink)",outline:"none",resize:"none",lineHeight:1.55}} />
+        )}
+      </div>
+
+      <button className="submit-btn blue" onClick={handleSubmit} disabled={!valid||loading}>
+        {loading ? <><span className="spinner"/>Matching you now...</> : "Submit for Review →"}
+      </button>
+    </div>
+  );
+}
+
+function ReviewerDashboard({ reviewerId, user }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  const load = () => api("GET", `/api/reviewers/${reviewerId}`).then(setData).catch(e=>setError(e.message));
+  useEffect(() => { load(); }, [reviewerId]);
+
+  if (error) return <div className="dashboard"><div className="error-banner">{error}</div></div>;
+  if (!data) return <div className="thankyou-page"><div className="big-icon">⏳</div></div>;
+
+  const { reviewer, matches } = data;
+  return (
+    <div className="dashboard">
+      <div className="dash-header">
+        <div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
+          <h1 className="dash-title">{reviewer.name}</h1>
+          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{reviewer.role} · {reviewer.company}</div>
+        </div>
+        <span className="badge amber">● Active Reviewer</span>
+      </div>
+      <div className="section-label">Assigned matches ({matches.length})</div>
+      {matches.length === 0 && (
+        <div style={{padding:"40px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:15}}>
+          No matches yet — you'll be notified when a candidate is paired with you.
+        </div>
+      )}
+      {matches.map((m,i) => <MatchCard key={i} match={m} onRefresh={load} />)}
+    </div>
+  );
+}
+
+function MatchCard({ match, onRefresh }) {
+  const [showReview, setShowReview] = useState(false);
+  if (showReview) return <InlineReview match={match} onBack={()=>setShowReview(false)} onDone={()=>{setShowReview(false);onRefresh();}} />;
+  return (
+    <div className="match-card">
+      <div className="match-card-header">
+        <div className="match-names">
+          <div className="avatar amber-bg">{match.reviewer?.name?.[0]}</div>
+          <div className="name-block"><strong>{match.reviewer?.name}</strong><span>{match.reviewer?.role} · {match.reviewer?.company}</span></div>
+          <span className="match-arrow">→</span>
+          <div className="avatar blue-bg">{match.candidate?.name?.[0]}</div>
+          <div className="name-block"><strong>{match.candidate?.name}</strong><span>Targeting: {match.candidate?.targetRole}</span></div>
+        </div>
+        <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Reviewed":"● Awaiting Review"}</span>
+      </div>
+      {match.rationale && <div className="rationale-box"><div className="rationale-label">AI Match Rationale</div><div className="rationale-text">{match.rationale}</div></div>}
+      {match.status === "pending" && <button className="action-btn amber-btn" onClick={()=>setShowReview(true)}>Write Review →</button>}
+    </div>
+  );
+}
+
+function InlineReview({ match, onBack, onDone }) {
+  const [feedback, setFeedback] = useState("");
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  const getAI = async () => {
+    setAiLoading(true); setAiText("");
+    try {
+      const system = `You are helping an experienced ${match.reviewer?.role} write candid, specific resume feedback for a job seeker targeting ${match.candidate?.targetRole}. Give 3-4 pointed, actionable observations. Be direct.`;
+      const res = await api("POST", "/api/claude", { system, messages: [{ role:"user", content:`Reviewer: ${match.reviewer?.name}, ${match.reviewer?.role} at ${match.reviewer?.company}\nCandidate targeting: ${match.candidate?.targetRole}\n\nResume:\n${match.candidate?.resume}` }], max_tokens:1000 });
+      setAiText(res.text);
+    } catch(e) { setError(e.message); }
+    setAiLoading(false);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await api("POST", "/api/feedback", { matchId: match.id, body: feedback });
+      setDone(true);
+      setTimeout(onDone, 1600);
+    } catch(e) { setError(e.message); }
+    setSubmitting(false);
+  };
+
+  if (done) return (
+    <div className="match-card" style={{textAlign:"center",padding:"40px"}}>
+      <div style={{fontSize:36,marginBottom:12}}>✅</div>
+      <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:300}}>Feedback sent!</div>
+    </div>
+  );
+
+  return (
+    <div className="review-page" style={{padding:"0 0 40px"}}>
+      <button className="back-btn" onClick={onBack} style={{marginBottom:20}}>← Back</button>
+      <div className="form-eyebrow amber">Reviewing resume</div>
+      <h1 className="form-heading" style={{fontSize:28}}>{match.candidate?.name}</h1>
+      <p style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>Targeting: <strong style={{color:"var(--ink)"}}>{match.candidate?.targetRole}</strong></p>
+      <div className="two-col">
+        <div className="panel">
+          <div className="panel-header"><span className="panel-title">Candidate Resume</span><span className="badge blue">Confidential</span></div>
+          <div className="panel-body"><div className="resume-text">{match.candidate?.resume}</div></div>
+        </div>
+        <div className="panel">
+          <div className="panel-header">
+            <span className="panel-title">Your Feedback</span>
+            <button className="ai-btn" onClick={getAI} disabled={aiLoading}>
+              {aiLoading ? <><span className="spinner dark" style={{width:12,height:12}}/>Thinking...</> : "✦ AI Assist"}
+            </button>
+          </div>
+          <div className="panel-body">
+            {error && <div className="error-banner">{error}</div>}
+            <textarea className="feedback-textarea" value={feedback} onChange={e=>setFeedback(e.target.value)}
+              placeholder={`Write honest feedback.\n\nWhat's strong? What needs work? What one thing would make this resume stand out for ${match.candidate?.targetRole}?`} />
+            {aiText && (
+              <div className="ai-suggestion">
+                <div className="ai-suggestion-label">✦ AI starting points — edit before using</div>
+                <div className="ai-suggestion-text">{aiText}</div>
+                <button className="action-btn outline" style={{marginTop:12,fontSize:12}} onClick={()=>{setFeedback(f=>f?f+"\n\n"+aiText:aiText);setAiText("");}}>Use as starting point →</button>
+              </div>
+            )}
+          </div>
+          <div className="panel-footer">
+            <button className="action-btn amber-btn" style={{width:"100%",padding:"12px",fontSize:14}} onClick={handleSubmit} disabled={!feedback.trim()||submitting}>
+              {submitting ? <><span className="spinner"/>Sending...</> : "Send Feedback to Candidate →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CandidateStatus({ candidateId: initialId }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        let cid = initialId;
+        // If candidateId isn't in props yet (race condition), fetch fresh from /api/me
+        if (!cid) {
+          const { user } = await api("GET", "/api/me");
+          cid = user?.candidate_id;
+        }
+        if (!cid) { setError("No candidate profile found. Please complete your profile."); return; }
+        const d = await api("GET", `/api/candidates/${cid}/status`);
+        console.log("CandidateStatus data:", d);
+        setData(d);
+      } catch(e) {
+        console.error("CandidateStatus error:", e);
+        setError(e.message);
+      }
+    };
+    load();
+  }, [initialId]);
+
+  if (error) return (
+    <div className="dashboard">
+      <div className="error-banner">{error}</div>
+    </div>
+  );
+  if (!data) return (
+    <div className="thankyou-page">
+      <div className="big-icon" style={{animation:"spin 1s linear infinite"}}>⚙</div>
+      <p style={{color:"var(--ink-muted)",fontSize:14,marginTop:16}}>Loading your status...</p>
+    </div>
+  );
+
+  const { candidate, matches } = data;
+  const match = matches[0];
+
+  return (
+    <div className="status-page">
+      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Candidate Dashboard</div>
+      <h1 className="dash-title">{candidate.name}</h1>
+      <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4,marginBottom:28}}>Targeting: {candidate.targetRole} · {candidate.targetArea}</div>
+
+      {!match ? (
+        <div className="status-card" style={{textAlign:"center",padding:"40px 28px"}}>
+          <div style={{fontSize:40,marginBottom:16}}>⏳</div>
+          <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:300,marginBottom:8}}>In the queue</div>
+          <p style={{fontSize:14,color:"var(--ink-muted)"}}>We're finding the right reviewer for your field. We'll email <strong>{candidate.email}</strong> when matched.</p>
+        </div>
+      ) : (
+        <div className="status-card">
+          <div className="match-card-header">
+            <div>
+              <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ink-muted)",marginBottom:6}}>Your Reviewer</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div className="avatar amber-bg">{match.reviewer?.name?.[0]}</div>
+                <div className="name-block">
+                  <strong>{match.reviewer?.name}</strong>
+                  <span>{match.reviewer?.role} · {match.reviewer?.company} · {match.reviewer?.years} yrs</span>
+                </div>
+              </div>
+            </div>
+            <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Review received":"⏳ Review pending"}</span>
+          </div>
+
+          {match.rationale && (
+            <div className="rationale-box" style={{marginTop:16}}>
+              <div className="rationale-label">Why this match</div>
+              <div className="rationale-text">{match.rationale}</div>
+            </div>
+          )}
+
+          {match.feedback && (
+            <>
+              <div className="divider" />
+              <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--green)",marginBottom:12}}>✓ Feedback received</div>
+              <div className="feedback-body">{match.feedback.body}</div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState(undefined); // undefined = loading
+  const [view, setView] = useState("loading");
+
+  // Check session on load + handle ?auth=success redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth")) window.history.replaceState({}, "", "/");
+    api("GET", "/api/me").then(({ user: u }) => {
+      setUser(u);
+      routeUser(u);
+    }).catch(() => { setUser(null); setView("login"); });
+  }, []);
+
+  const routeUser = (u) => {
+    if (!u) { setView("login"); return; }
+    if (!u.reviewer_id && !u.candidate_id) { setView("pick-role"); return; }
+    // Default to whichever profile they have; prefer reviewer if both
+    if (u.reviewer_id) setView("reviewer-dashboard");
+    else setView("candidate-status");
+  };
+
+  const handleTabSelect = async (tab) => {
+    const u = await refreshUser();
+    if (tab === "reviewer") setView(u.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
+    else setView(u.candidate_id ? "candidate-status" : "candidate-setup");
+  };
+
+  const handleSignOut = async () => {
+    await api("POST", "/auth/logout");
+    setUser(null);
+    setView("login");
+  };
+
+  const refreshUser = async () => {
+    const { user: u } = await api("GET", "/api/me");
+    setUser(u);
+    return u;
+  };
+
+  if (view === "loading") return (
+    <>
+      <style>{style}</style>
+      <div className="thankyou-page"><div className="big-icon" style={{animation:"spin 1s linear infinite"}}>⚙</div></div>
+    </>
+  );
+
+  return (
+    <>
+      <style>{style}</style>
+      <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} onTabSelect={handleTabSelect} currentView={view} />
+
+      {view === "login" && <LoginPage />}
+
+      {view === "pick-role" && user && (
+        <RolePicker user={user} onRoleSet={async (role) => {
+          await refreshUser();
+          setView(role === "reviewer" ? "reviewer-setup" : "candidate-setup");
+        }} />
+      )}
+
+      {view === "reviewer-setup" && user && (
+        <ReviewerSignup user={user} onDone={async () => { await refreshUser(); setView("reviewer-dashboard"); }} />
+      )}
+
+      {view === "candidate-setup" && user && (
+        <CandidateSignup user={user} onDone={async () => { await refreshUser(); setView("candidate-status"); }} />
+      )}
+
+      {view === "reviewer-dashboard" && user?.reviewer_id && (
+        <ReviewerDashboard reviewerId={user.reviewer_id} user={user} />
+      )}
+
+      {view === "candidate-status" && (
+        <CandidateStatus candidateId={user?.candidate_id} userId={user?.id} />
+      )}
+    </>
+  );
+}
