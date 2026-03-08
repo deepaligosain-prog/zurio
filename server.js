@@ -19,7 +19,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || "zurio-dev-secret-change-in-prod",
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 }
+  cookie: { 
+    httpOnly: true, 
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+  }
 }));
 
 // ─── JSON DB ──────────────────────────────────────────────────────────────────
