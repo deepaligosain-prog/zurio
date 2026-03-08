@@ -1,5 +1,5 @@
 /**
- * Zurio Matching Test Agent — with full score tables
+ * Zurio Matching Test Agent
  * Run: node zurio_test.mjs
  */
 
@@ -71,6 +71,11 @@ async function createReviewer(cookie, profile) {
 }
 async function submitCandidate(cookie, profile) {
   const r = await api("POST", "/api/candidates", profile, cookie);
+  if (r.status !== 200) throw new Error(`Failed: ${JSON.stringify(r.data)}`);
+  return r.data;
+}
+async function getMine(cookie) {
+  const r = await api("GET", "/api/candidates/mine", null, cookie);
   if (r.status !== 200) throw new Error(`Failed: ${JSON.stringify(r.data)}`);
   return r.data;
 }
@@ -223,7 +228,7 @@ async function runTests() {
       });
       const matchedId = result.reviewer?.id;
       if (!matchedId) {
-        warn(`[${rev.tag}]`, "No reviewer assigned");
+        warn(`[${rev.tag}]`, "No reviewer assigned (waitlisted or no qualified match)");
       } else if (matchedId === reviewerIds[rev.tag]) {
         fail(`[${rev.tag}]`, `MATCHED TO SELF (reviewer_id ${matchedId})`);
       } else {
@@ -243,26 +248,25 @@ async function runTests() {
       const cookie = await login(cand.user.name, cand.user.email);
       candidateCookies[cand.tag] = cookie;
 
-      // Full score table
       const scoreData = await getMatchScores(cookie, cand.profile);
       if (scoreData?.scores?.length) {
-        console.log(`\n    ALL REVIEWERS SCORED (pool size: ${scoreData.pool_size}):`);
+        const qualCount = scoreData.scores.filter(s => s.score >= 5).length;
+        console.log(`\n    ALL REVIEWERS SCORED (pool: ${scoreData.pool_size}, qualified ≥5: ${qualCount}):`);
         printScoreTable(scoreData.scores, testIdSet);
       } else {
         console.log("    (debug endpoint not available or no reviewers)\n");
       }
 
-      // Actual assignment
       const result = await submitCandidate(cookie, cand.profile);
       candidateResults[cand.tag] = result;
       const matchedId = result.reviewer?.id;
       const expectedId = reviewerIds[cand.expectedMatch];
       const matchedTag = Object.entries(reviewerIds).find(([,id]) => id === matchedId)?.[0];
 
-      info(`  ASSIGNED`, `Reviewer ID ${matchedId} ${matchedTag ? `[${matchedTag}]` : "⚡pre-existing"} — "${result.rationale || "no rationale"}"`);
+      info(`  ASSIGNED`, `Reviewer ID ${matchedId || "none"} ${matchedTag ? `[${matchedTag}]` : matchedId ? "⚡pre-existing" : "(waitlisted)"} — "${result.rationale || result.match?.status || "no rationale"}"`);
 
       if (!matchedId) {
-        warn(`Field match [${cand.tag}]`, "No reviewer assigned");
+        warn(`Field match [${cand.tag}]`, "No reviewer assigned (waitlisted or score threshold)");
       } else if (matchedId === expectedId) {
         pass(`Field match [${cand.tag}]`, `✓ Correctly matched to [${cand.expectedMatch}]`);
       } else {
@@ -283,14 +287,96 @@ async function runTests() {
     const matchedId = vpResult.reviewer?.id;
     const juniorId = reviewerIds["junior_engineer"];
     if (matchedId === juniorId) fail("VP → must not get junior", "MATCHED TO JUNIOR ENGINEER");
-    else if (!matchedId) warn("VP → must not get junior", "No reviewer assigned");
+    else if (!matchedId) warn("VP → must not get junior", "No reviewer assigned (waitlisted or no qualified match)");
     else {
       const tag = Object.entries(reviewerIds).find(([,id]) => id === matchedId)?.[0] || `ID ${matchedId}`;
       pass("VP → must not get junior", `Matched to [${tag}]`);
     }
   }
 
-  section("6. CANDIDATE STATUS API");
+  section("6. MINIMUM SCORE THRESHOLD — unqualified reviewer should not match");
+  try {
+    // Create a clearly mismatched reviewer (lawyer trying to review a data science resume)
+    const mismatchEmail = `mismatch_reviewer_${TIMESTAMP}@test.zurio`;
+    const mismatchCookie = await login(`Mismatch Reviewer ${TIMESTAMP}`, mismatchEmail);
+    await createReviewer(mismatchCookie, {
+      name: `Mismatch Reviewer ${TIMESTAMP}`, role: "Family Law Attorney", company: "Law Firm",
+      years: "10", areas: ["Legal", "Law"],
+      bio: "Family law attorney, no tech background.",
+      resumeText: "Family law attorney with 10 years experience in divorce and custody cases. Bar certified."
+    });
+
+    // Submit a data science candidate — should NOT match the lawyer
+    // (and should waitlist if the lawyer is the only eligible reviewer)
+    const dsEmail = `ds_threshold_${TIMESTAMP}@test.zurio`;
+    const dsCookie = await login(`DS Threshold ${TIMESTAMP}`, dsEmail);
+    const dsResult = await submitCandidate(dsCookie, {
+      name: `DS Threshold ${TIMESTAMP}`, email: dsEmail,
+      targetRole: "Senior Data Scientist", targetArea: "Data Science",
+      resume: "5 years in ML/AI, Python, TensorFlow, published 3 NeurIPS papers. Targeting Senior DS at FAANG.",
+      label: "Data Science Resume"
+    });
+
+    if (dsResult.waitlisted) {
+      pass("Score threshold — unqualified reviewer", "Candidate waitlisted rather than matched to mismatched reviewer ✓");
+    } else {
+      const matchedId = dsResult.reviewer?.id;
+      const matchedTag = Object.entries(reviewerIds).find(([,id]) => id === matchedId)?.[0];
+      if (matchedTag) {
+        // Matched to one of our proper test reviewers — still a valid outcome
+        pass("Score threshold — unqualified reviewer", `Matched to qualified reviewer [${matchedTag}] instead ✓`);
+      } else {
+        warn("Score threshold — unqualified reviewer", `Matched to reviewer ID ${matchedId} — verify this is qualified`);
+      }
+    }
+  } catch(e) { fail("Score threshold test", e.message); }
+
+  section("7. MULTI-RESUME SUBMISSIONS");
+  try {
+    const multiEmail = `multi_${TIMESTAMP}@test.zurio`;
+    const multiCookie = await login(`Multi Resume User ${TIMESTAMP}`, multiEmail);
+
+    // First submission: PM resume
+    const sub1 = await submitCandidate(multiCookie, {
+      name: `Multi User ${TIMESTAMP}`, email: multiEmail,
+      targetRole: "Senior Product Manager", targetArea: "Product Management",
+      resume: "5 years PM experience at B2B SaaS companies. Strong in roadmap and stakeholder management.",
+      label: "PM Resume"
+    });
+    pass("Multi-resume: first submission", `Candidate ID ${sub1.candidate?.id}, label: "${sub1.candidate?.label || sub1.candidate?.targetRole}"`);
+
+    // Second submission: EM resume (same user, different resume)
+    const sub2 = await submitCandidate(multiCookie, {
+      name: `Multi User ${TIMESTAMP}`, email: multiEmail,
+      targetRole: "Engineering Manager", targetArea: "Software Engineering",
+      resume: "Transitioned from SWE to EM. Managing team of 8 engineers. Previously Staff Engineer at Spotify.",
+      label: "Engineering Manager Resume"
+    });
+    pass("Multi-resume: second submission", `Candidate ID ${sub2.candidate?.id}, label: "${sub2.candidate?.label || sub2.candidate?.targetRole}"`);
+
+    // Verify both show on /api/candidates/mine
+    const mine = await getMine(multiCookie);
+    if (mine.submissions?.length >= 2) {
+      pass("GET /api/candidates/mine", `Returns ${mine.submissions.length} submissions for same user`);
+      // Verify they're different submissions
+      const ids = mine.submissions.map(s => s.candidate.id);
+      const unique = new Set(ids).size === ids.length;
+      unique
+        ? pass("Multi-resume: submissions are distinct", `IDs: ${ids.join(", ")}`)
+        : fail("Multi-resume: submissions are distinct", "Duplicate candidate IDs returned");
+    } else {
+      fail("GET /api/candidates/mine", `Expected ≥2 submissions, got ${mine.submissions?.length ?? 0}`);
+    }
+
+    // Verify auto-label
+    const labels = mine.submissions.map(s => s.candidate.label).filter(Boolean);
+    labels.length > 0
+      ? pass("Auto-label stored", `Labels: ${labels.join(" | ")}`)
+      : warn("Auto-label stored", "No labels found on submissions");
+
+  } catch(e) { fail("Multi-resume test", e.message); }
+
+  section("8. CANDIDATE STATUS API");
   for (const cand of CANDIDATES) {
     try {
       const cookie = candidateCookies[cand.tag];
@@ -303,13 +389,57 @@ async function runTests() {
     } catch(e) { fail(`[${cand.tag}]`, e.message); }
   }
 
-  section("7. AUTH GUARD");
+  section("9. GET /api/candidates/mine — auth guard");
+  try {
+    const r = await api("GET", "/api/candidates/mine");
+    r.status === 401
+      ? pass("Unauthenticated /mine", "Rejected with 401")
+      : fail("Unauthenticated /mine", `Expected 401, got ${r.status}`);
+  } catch(e) { fail("Auth guard /mine", e.message); }
+
+  section("10. AUTH GUARD — POST /api/candidates");
   try {
     const r = await api("POST", "/api/candidates", { name:"x", email:"x@x.com", targetRole:"PM", targetArea:"Product", resume:"test" });
-    r.status === 401 ? pass("Unauthenticated request", "Rejected with 401") : fail("Unauthenticated request", `Expected 401, got ${r.status}`);
+    r.status === 401 ? pass("Unauthenticated POST /candidates", "Rejected with 401") : fail("Unauthenticated POST /candidates", `Expected 401, got ${r.status}`);
   } catch(e) { fail("Auth guard", e.message); }
 
-  section("8. IDEMPOTENT LOGIN");
+  section("11. WAITLIST — CAPACITY EXHAUSTION");
+  try {
+    const wlEmail = `wl_reviewer_${TIMESTAMP}@test.zurio`;
+    const wlCookie = await login(`WL Reviewer ${TIMESTAMP}`, wlEmail);
+    await createReviewer(wlCookie, {
+      name: `WL Reviewer ${TIMESTAMP}`, role: "Senior Data Scientist", company: "OpenAI",
+      years: "8", areas: ["Data Science", "Machine Learning"],
+      bio: "Senior DS at OpenAI.",
+      resumeText: "Senior Data Scientist at OpenAI. 8 years in ML, Python, statistics."
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const cc = await login(`WL Filler ${i} ${TIMESTAMP}`, `wl_filler_${i}_${TIMESTAMP}@test.zurio`);
+      await submitCandidate(cc, {
+        name: `WL Filler ${i}`, email: `wl_filler_${i}_${TIMESTAMP}@test.zurio`,
+        targetRole: "Junior Data Scientist", targetArea: "Data Science",
+        resume: "Data Science student seeking junior DS role. Python, pandas, sklearn."
+      });
+    }
+
+    const overflowCookie = await login(`WL Overflow ${TIMESTAMP}`, `wl_overflow_${TIMESTAMP}@test.zurio`);
+    const overflowResult = await submitCandidate(overflowCookie, {
+      name: `WL Overflow ${TIMESTAMP}`, email: `wl_overflow_${TIMESTAMP}@test.zurio`,
+      targetRole: "Junior Data Scientist", targetArea: "Data Science",
+      resume: "Data Science student seeking junior DS role. Python, pandas, sklearn."
+    });
+
+    if (overflowResult.waitlisted === true && overflowResult.match?.status === "waitlist") {
+      pass("Waitlist on capacity exhaustion", "4th candidate correctly waitlisted");
+    } else if (overflowResult.waitlisted) {
+      pass("Waitlist on capacity exhaustion", "Candidate waitlisted (matched to different reviewer)");
+    } else {
+      warn("Waitlist on capacity exhaustion", `Not waitlisted — may have matched elsewhere. status: ${overflowResult.match?.status}`);
+    }
+  } catch(e) { fail("Waitlist test", e.message); }
+
+  section("12. IDEMPOTENT LOGIN");
   try {
     const email = `idem_${TIMESTAMP}@test.zurio`;
     const [c1, c2] = await Promise.all([login("Test", email), login("Test", email)]);

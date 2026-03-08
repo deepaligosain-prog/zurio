@@ -770,7 +770,14 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
         if (!d.submissions || d.submissions.length === 0) { onNoProfile?.(); return; }
         setSubmissions(d.submissions);
       })
-      .catch(e => setError(e.message));
+      .catch(e => {
+        // If endpoint missing (old server), show error rather than looping back to form
+        if (e.message?.includes("404") || e.message?.includes("Not Found")) {
+          setError("Could not load submissions — server may need to be redeployed.");
+        } else {
+          setError(e.message);
+        }
+      });
   }, []);
 
   if (error) return <div className="dashboard"><div className="error-banner">{error}</div></div>;
