@@ -337,4 +337,43 @@ app.get("*", (req, res) => {
   }
 });
 
+// ─── Debug: match scores (test use only) ─────────────────────────────────────
+app.post("/api/debug/match-scores", requireAuth, async (req, res) => {
+  const { resume, targetRole, targetArea, excludeReviewerIds } = req.body;
+  if (!resume || !targetRole || !targetArea) return res.status(400).json({ error: "Missing fields" });
+
+  const exclude = new Set((excludeReviewerIds || []).map(Number));
+  const pool = db.reviewers.filter(r => !exclude.has(r.id) && r.id !== req.user.reviewer_id);
+
+  if (pool.length === 0) return res.json({ scores: [], pool_size: 0 });
+
+  const reviewerSummaries = pool.map(r => {
+    let s = `Reviewer ID ${r.id}: ${r.name}, ${r.role} at ${r.company}, ${r.years} years exp, areas: [${r.areas.join(", ")}].`;
+    if (r.bio) s += ` Bio: ${r.bio}`;
+    if (r.resumeText) s += `\nResume:\n${r.resumeText.slice(0, 1000)}`;
+    return s;
+  }).join("\n\n---\n\n");
+
+  const system = `You are a matching engine. Return a JSON array only — no markdown, no explanation.
+Each object: { reviewer_id (number), score (1-10), reasoning (string), seniority_ok (boolean), field_match (boolean) }
+Score based on: field overlap, industry relevance, seniority (reviewer must be MORE senior than candidate target).
+Return ALL reviewers ranked best to worst. JSON array only.`;
+
+  const prompt = `Candidate targeting: ${targetRole} in ${targetArea}\nResume: ${resume.slice(0, 1500)}\n\nReviewers:\n${reviewerSummaries}`;
+
+  try {
+    const raw = await callClaude(system, prompt, 1200);
+    const cleaned = raw.replace(/\`\`\`json\n?|\n?\`\`\`/g, "").trim();
+    const scores = JSON.parse(cleaned);
+    // Enrich with reviewer details
+    const enriched = scores.map(s => {
+      const rev = pool.find(r => r.id === s.reviewer_id);
+      return { ...s, reviewer_name: rev?.name, reviewer_role: rev?.role, reviewer_company: rev?.company, reviewer_years: rev?.years, reviewer_areas: rev?.areas };
+    });
+    res.json({ scores: enriched, pool_size: pool.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`✅ Zurio server on http://localhost:${PORT}`));
