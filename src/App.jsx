@@ -1,6 +1,40 @@
 // src/App.jsx — Zurio with Google Auth
 
 import { useState, useEffect, useRef } from "react";
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).href;
+
+async function extractTextFromFile(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+  if (ext === "txt") {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.onerror = () => rej(new Error("Could not read file"));
+      r.readAsText(file);
+    });
+  }
+  if (ext === "docx" || ext === "doc") {
+    const buf = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer: buf });
+    if (!result.value || result.value.trim().length < 30) throw new Error("Could not extract text from this Word file. Please paste your resume as text instead.");
+    return result.value.trim();
+  }
+  if (ext === "pdf") {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(s => s.str).join(" ") + "\n";
+    }
+    if (text.trim().length < 30) throw new Error("Could not extract text from this PDF. Please paste your resume as text instead.");
+    return text.trim();
+  }
+  throw new Error("Unsupported file type. Please upload PDF, DOCX, or TXT.");
+}
 
 const style = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap');
@@ -185,7 +219,7 @@ async function api(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API error");
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
 
@@ -315,28 +349,16 @@ function ReviewerSignup({ user, onDone }) {
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
   const valid = form.name && form.role && form.company && form.years && form.areas.length > 0;
 
-  const readFile = (file) => {
+  const readFile = async (file) => {
     if (!file) return;
     const ext = file.name.split(".").pop().toLowerCase();
     if (!["pdf","doc","docx","txt"].includes(ext)) { setError("Please upload a PDF, Word (.docx), or .txt file."); return; }
     setError(""); setFileName(file.name);
-    const reader = new FileReader();
-    if (ext === "txt") {
-      reader.onload = (e) => setForm(f => ({ ...f, resumeText: e.target.result }));
-      reader.readAsText(file);
-    } else {
-      reader.onload = (e) => {
-        const raw = new Uint8Array(e.target.result);
-        let text = "";
-        for (let i = 0; i < raw.length; i++) {
-          const c = raw[i];
-          if ((c >= 32 && c < 127) || c === 10 || c === 13) text += String.fromCharCode(c);
-        }
-        text = text.replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-        if (text.length < 30) { setError("Couldn't extract text from this file. The profile info you entered will still be used for matching."); return; }
-        setForm(f => ({ ...f, resumeText: text }));
-      };
-      reader.readAsArrayBuffer(file);
+    try {
+      const text = await extractTextFromFile(file);
+      setForm(f => ({ ...f, resumeText: text }));
+    } catch(e) {
+      setError(e.message);
     }
   };
 
@@ -422,41 +444,20 @@ function CandidateSignup({ user, onDone }) {
 
   const valid = form.name && form.email && form.targetRole && form.targetArea && form.resume.trim().length > 50;
 
-  const readFile = (file) => {
+  const readFile = async (file) => {
     if (!file) return;
-    const name = file.name;
-    const ext = name.split(".").pop().toLowerCase();
-    if (!["pdf", "doc", "docx", "txt"].includes(ext)) {
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["pdf","doc","docx","txt"].includes(ext)) {
       setError("Please upload a PDF, Word (.docx), or .txt file.");
       return;
     }
-    setError("");
-    setFileName(name);
-    // For txt files read directly; for PDF/Word extract via text reader
-    const reader = new FileReader();
-    if (ext === "txt") {
-      reader.onload = (e) => setForm(f => ({ ...f, resume: e.target.result }));
-      reader.readAsText(file);
-    } else {
-      // PDF and Word: read as text (best effort — plain text extraction)
-      reader.onload = (e) => {
-        // Strip binary noise, keep printable chars
-        const raw = new Uint8Array(e.target.result);
-        let text = "";
-        for (let i = 0; i < raw.length; i++) {
-          const c = raw[i];
-          if ((c >= 32 && c < 127) || c === 10 || c === 13) text += String.fromCharCode(c);
-        }
-        // Clean up runs of whitespace
-        text = text.replace(/[^\S\n]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-        if (text.length < 50) {
-          setError("Couldn't extract text from this file. Please paste your resume as text instead.");
-          setResumeTab("paste");
-          return;
-        }
-        setForm(f => ({ ...f, resume: text }));
-      };
-      reader.readAsArrayBuffer(file);
+    setError(""); setFileName(file.name);
+    try {
+      const text = await extractTextFromFile(file);
+      setForm(f => ({ ...f, resume: text }));
+    } catch(e) {
+      setError(e.message);
+      setResumeTab("paste");
     }
   };
 
@@ -669,7 +670,7 @@ function InlineReview({ match, onBack, onDone }) {
   );
 }
 
-function CandidateStatus({ candidateId: initialId }) {
+function CandidateStatus({ candidateId: initialId, onNoProfile }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
@@ -677,17 +678,14 @@ function CandidateStatus({ candidateId: initialId }) {
     const load = async () => {
       try {
         let cid = initialId;
-        // If candidateId isn't in props yet (race condition), fetch fresh from /api/me
         if (!cid) {
           const { user } = await api("GET", "/api/me");
           cid = user?.candidate_id;
         }
-        if (!cid) { setError("No candidate profile found. Please complete your profile."); return; }
+        if (!cid) { onNoProfile?.(); return; }
         const d = await api("GET", `/api/candidates/${cid}/status`);
-        console.log("CandidateStatus data:", d);
         setData(d);
       } catch(e) {
-        console.error("CandidateStatus error:", e);
         setError(e.message);
       }
     };
@@ -727,10 +725,10 @@ function CandidateStatus({ candidateId: initialId }) {
             <div>
               <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ink-muted)",marginBottom:6}}>Your Reviewer</div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div className="avatar amber-bg">{match.reviewer?.name?.[0]}</div>
+                <div className="avatar amber-bg">?</div>
                 <div className="name-block">
-                  <strong>{match.reviewer?.name}</strong>
-                  <span>{match.reviewer?.role} · {match.reviewer?.company} · {match.reviewer?.years} yrs</span>
+                  <strong>Anonymous Reviewer</strong>
+                  <span>{match.reviewer?.years}+ years exp · {match.reviewer?.areas?.slice(0,2).join(", ")}</span>
                 </div>
               </div>
             </div>
@@ -778,10 +776,9 @@ export default function App() {
     else setView("candidate-status");
   };
 
-  const handleTabSelect = async (tab) => {
-    const u = await refreshUser();
-    if (tab === "reviewer") setView(u.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
-    else setView(u.candidate_id ? "candidate-status" : "candidate-setup");
+  const handleTabSelect = (tab) => {
+    if (tab === "reviewer") setView(user?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
+    else setView(user?.candidate_id ? "candidate-status" : "candidate-setup");
   };
 
   const handleSignOut = async () => {
@@ -811,8 +808,7 @@ export default function App() {
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
 
       {view === "pick-role" && user && (
-        <RolePicker user={user} onRoleSet={async (role) => {
-          await refreshUser();
+        <RolePicker user={user} onRoleSet={(role) => {
           setView(role === "reviewer" ? "reviewer-setup" : "candidate-setup");
         }} />
       )}
@@ -830,7 +826,7 @@ export default function App() {
       )}
 
       {view === "candidate-status" && (
-        <CandidateStatus candidateId={user?.candidate_id} userId={user?.id} />
+        <CandidateStatus candidateId={user?.candidate_id} onNoProfile={() => setView("candidate-setup")} />
       )}
     </>
   );

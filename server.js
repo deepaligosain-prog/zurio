@@ -118,6 +118,23 @@ app.post("/api/me/role", requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+
+// ─── Email helper ─────────────────────────────────────────────────────────────
+async function sendEmail({ to, subject, html }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) { console.log("[email] No RESEND_API_KEY — skipping:", subject, "to", to); return; }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ from: "Zurio <notifications@zurio.com>", to, subject, html }),
+    });
+    const data = await res.json();
+    if (!res.ok) console.error("[email] Resend error:", data);
+    else console.log("[email] Sent:", subject, "to", to);
+  } catch(e) { console.error("[email] Failed:", e.message); }
+}
+
 // ─── Claude helper ────────────────────────────────────────────────────────────
 async function callClaude(system, userMsg, maxTokens = 200) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -178,8 +195,9 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
   }
 
   // ─── AI Matching ────────────────────────────────────────────────────────────
-  // Build reviewer summaries for Claude — richer if they uploaded a resume
-  const reviewerSummaries = db.reviewers.map(r => {
+  // Build reviewer summaries for Claude — exclude self
+  const eligibleReviewers = db.reviewers.filter(r => r.id !== req.user.reviewer_id);
+  const reviewerSummaries = eligibleReviewers.map(r => {
     let summary = `Reviewer ID ${r.id}: ${r.name}, ${r.role} at ${r.company}, ${r.years} years exp, areas: [${r.areas.join(", ")}].`;
     if (r.bio) summary += ` Bio: ${r.bio}`;
     if (r.resumeText) summary += `\nFull resume:\n${r.resumeText.slice(0, 1500)}`;
@@ -196,7 +214,7 @@ Each object in the array must have:
 Score based on:
 1. Overlap between reviewer's career path / expertise and candidate's target role
 2. Industry or company relevance
-3. Seniority match (reviewer should be at least 1 level above candidate's target)
+3. Seniority match — CRITICAL: reviewer must be meaningfully MORE senior than the candidate's target role. A VP reviewing an entry-level candidate is acceptable. A Sr Manager reviewing a VP candidate is NOT acceptable. Penalize heavily any reviewer who is at the same level or junior to the candidate's target.
 4. If reviewer uploaded a resume, use it for richer signal
 
 Return ALL reviewers ranked from best to worst match. JSON array only.`;
@@ -262,7 +280,25 @@ app.post("/api/feedback", requireAuth, (req, res) => {
   if (!match) return res.status(404).json({ error: "Match not found" });
   match.status = "done";
   saveDB();
-  res.json({ feedback: insert("feedback", { match_id: Number(matchId), body }) });
+  const fb = insert("feedback", { match_id: Number(matchId), body });
+  match.status = "done";
+  saveDB();
+
+  // Notify candidate by email
+  const candidate = findById("candidates", match.candidate_id);
+  if (candidate?.email) {
+    sendEmail({
+      to: candidate.email,
+      subject: "Your resume review is ready on Zurio",
+      html: `<p>Hi ${candidate.name},</p>
+<p>Your resume review is ready on <strong>Zurio</strong>!</p>
+<p>An expert in your target field has reviewed your resume and left detailed feedback.</p>
+<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Read your feedback →</a></p>
+<p style="color:#888;font-size:12px">You're receiving this because you submitted your resume on Zurio.</p>`
+    });
+  }
+
+  res.json({ feedback: fb });
 });
 
 // ─── Claude proxy ─────────────────────────────────────────────────────────────
