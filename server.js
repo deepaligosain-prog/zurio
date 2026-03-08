@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DB_FILE = path.join(__dirname, "zurio-data.json");
-const CLIENT_URL = "http://localhost:5173";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 // ─── CORS (must allow credentials from Vite) ──────────────────────────────────
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
@@ -70,7 +70,7 @@ passport.use(new GoogleStrategy(
   {
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `http://localhost:${PORT}/auth/google/callback`,
+    callbackURL: process.env.SERVER_URL ? `${process.env.SERVER_URL}/auth/google/callback` : `http://localhost:${PORT}/auth/google/callback`,
   },
   (accessToken, refreshToken, profile, done) => {
     const googleId = profile.id;
@@ -306,5 +306,14 @@ app.post("/api/claude", requireAuth, async (req, res) => {
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, users: db.users.length, reviewers: db.reviewers.length, candidates: db.candidates.length });
 });
+
+// Serve React frontend in production
+const distPath = path.join(__dirname, "dist");
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
 
 app.listen(PORT, () => console.log(`✅ Zurio server on http://localhost:${PORT}`));
