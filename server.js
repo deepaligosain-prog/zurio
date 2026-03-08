@@ -64,6 +64,7 @@ function findByField(table, field, value) {
 
 loadDB();
 console.log("✅ Zurio database ready");
+console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID?.slice(0, 20) + "...");
 
 // ─── Passport ─────────────────────────────────────────────────────────────────
 passport.use(new GoogleStrategy(
@@ -309,11 +310,15 @@ app.get("/api/health", (req, res) => {
 
 // Serve React frontend in production
 const distPath = path.join(__dirname, "dist");
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-}
+console.log("distPath:", distPath, "exists:", fs.existsSync(distPath));
+app.use(express.static(distPath));
+app.get("*", (req, res) => {
+  const indexPath = path.join(distPath, "index.html");
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send(`<h2>Zurio API is running. dist not found at ${distPath}</h2>`);
+  }
+});
 
 app.listen(PORT, () => console.log(`✅ Zurio server on http://localhost:${PORT}`));
