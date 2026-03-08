@@ -9,16 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "bcryptjs": "^3.0.3",
+    "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "express-session": "^1.18.0",
+    "mammoth": "^1.7.2",
+    "pdfjs-dist": "^4.4.168",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "express-session": "^1.18.0",
-    "@vitejs/plugin-react": "^4.2.1",
-    "concurrently": "^8.2.2",
-    "vite": "^5.0.0",
-    "mammoth": "^1.7.2",
-    "pdfjs-dist": "^4.4.168"
-  },
-  "devDependencies": {}
+    "vite": "^5.0.0"
+  }
 }

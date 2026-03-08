@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import session from "express-session";
+import bcrypt from "bcryptjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -102,23 +103,40 @@ function requireAuth(req, res, next) {
 }
 
 // ─── Auth Routes ──────────────────────────────────────────────────────────────
-app.post("/auth/login", (req, res) => {
-  const { name, email } = req.body;
-  if (!name || !email) return res.status(400).json({ error: "Name and email required" });
+app.post("/auth/register", async (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name?.trim() || !email?.trim() || !password) return res.status(400).json({ error: "Name, email, and password required" });
+  if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
   const normalizedEmail = email.toLowerCase().trim();
-  let user = findByField("users", "email", normalizedEmail);
-  if (!user) {
-    user = insert("users", {
-      email: normalizedEmail,
-      name: name.trim(),
-      picture: null,
-      role: null,
-      reviewer_id: null,
-      candidate_ids: [],
-    });
-  }
+  const existing = findByField("users", "email", normalizedEmail);
+  if (existing) return res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+  const passwordHash = await bcrypt.hash(password, 10);
+  const user = insert("users", {
+    email: normalizedEmail,
+    name: name.trim(),
+    passwordHash,
+    picture: null,
+    role: null,
+    reviewer_id: null,
+    candidate_ids: [],
+  });
   req.session.userId = user.id;
-  res.json({ user });
+  const { passwordHash: _, ...safeUser } = user;
+  res.json({ user: safeUser });
+});
+
+app.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email?.trim() || !password) return res.status(400).json({ error: "Email and password required" });
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = findByField("users", "email", normalizedEmail);
+  if (!user) return res.status(401).json({ error: "No account found with this email. Please create an account first." });
+  if (!user.passwordHash) return res.status(401).json({ error: "This account was created before passwords were required. Please contact support." });
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: "Incorrect password." });
+  req.session.userId = user.id;
+  const { passwordHash: _, ...safeUser } = user;
+  res.json({ user: safeUser });
 });
 
 app.post("/auth/logout", (req, res) => {
@@ -127,8 +145,9 @@ app.post("/auth/logout", (req, res) => {
 
 app.get("/api/me", (req, res) => {
   if (!req.session?.userId) return res.json({ user: null });
-  const user = { ...findById("users", req.session.userId) };
-  if (!user) return res.json({ user: null });
+  const raw = findById("users", req.session.userId);
+  if (!raw) return res.json({ user: null });
+  const { passwordHash: _, ...user } = { ...raw };
   if (user.reviewer_id) user.reviewer = findById("reviewers", user.reviewer_id);
   if (user.candidate_ids?.length) user.candidates = user.candidate_ids.map(id => findById("candidates", id)).filter(Boolean);
   res.json({ user });
@@ -209,21 +228,46 @@ app.get("/api/reviewers/:id", requireAuth, (req, res) => {
       if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) return null;
       // Strip resume from candidate summary — reviewer only needs name + targetRole for the card
       // Full resume is only sent in InlineReview (separate fetch)
-      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume } : null };
+      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
     })
     .filter(Boolean);
   res.json({ reviewer, matches });
 });
 
+// ─── PII detection & redaction ────────────────────────────────────────────────
+function redactPII(text) {
+  const redactions = [];
+  const patterns = [
+    { name: "phone", regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g },
+    { name: "email", regex: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Z]{2,}\b/gi },
+    { name: "SSN", regex: /\b\d{3}-\d{2}-\d{4}\b/g },
+    { name: "address", regex: /\b\d{1,5}\s+(?:[A-Z][a-z]+\s+){1,3}(?:St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Ln|Lane|Rd|Road|Ct|Court|Way|Pl|Place)\.?\b/gi },
+    { name: "zipcode", regex: /\b\d{5}(?:-\d{4})?\b/g },
+  ];
+  let redacted = text;
+  for (const { name, regex } of patterns) {
+    redacted = redacted.replace(regex, (match) => {
+      redactions.push({ type: name, original: match });
+      return `[${name.toUpperCase()} REDACTED]`;
+    });
+  }
+  return { redacted, redactions };
+}
+
 // ─── Candidate routes ─────────────────────────────────────────────────────────
 app.post("/api/candidates", requireAuth, async (req, res) => {
-  const { name, email, targetRole, targetArea, resume } = req.body;
+  const { name, email, targetRole, targetArea, resume, fileBase64, fileType, fileName } = req.body;
   if (!name || !email || !targetRole || !targetArea || !resume)
     return res.status(400).json({ error: "Missing required fields" });
 
+  // Redact PII from resume text
+  const { redacted: cleanResume, redactions } = redactPII(resume);
+
   // Always create a new candidate submission (one user can have multiple)
   const { label } = req.body; // optional user-override label
-  const candidate = insert("candidates", { name, email, targetRole, targetArea, resume, label: label || "" });
+  const candidateData = { name, email, targetRole, targetArea, resume: cleanResume, label: label || "" };
+  if (fileBase64) { candidateData.fileBase64 = fileBase64; candidateData.fileType = fileType || "application/pdf"; candidateData.fileName = fileName || "resume.pdf"; }
+  const candidate = insert("candidates", candidateData);
   if (!req.user.candidate_ids) req.user.candidate_ids = [];
   req.user.candidate_ids.push(candidate.id);
   req.user.role = "candidate";
@@ -253,14 +297,15 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
 
   // Check if candidate is already on waitlist
   const existingWaitlist = db.matches.find(m => m.candidate_id === candidate.id && m.status === "waitlist");
-  if (existingWaitlist) return res.json({ candidate, match: existingWaitlist, waitlisted: true });
+  const piiInfo = redactions.length > 0 ? { redactions } : {};
+  if (existingWaitlist) return res.json({ candidate, match: existingWaitlist, waitlisted: true, ...piiInfo });
 
   // No available reviewers → waitlist
   if (eligibleReviewers.length === 0) {
     const waitlistMatch = insert("matches", { reviewer_id: null, candidate_id: candidate.id, rationale: "", status: "waitlist" });
     saveDB();
     console.log(`[matching] No available reviewers — candidate ${candidate.id} added to waitlist`);
-    return res.json({ candidate, match: waitlistMatch, waitlisted: true });
+    return res.json({ candidate, match: waitlistMatch, waitlisted: true, ...piiInfo });
   }
 
   const reviewerSummaries = eligibleReviewers.map(r => {
@@ -314,10 +359,8 @@ ${reviewerSummaries}`;
       if (best) {
         bestReviewer = findById("reviewers", best.reviewer_id);
         if (bestReviewer) {
-          const areas = bestReviewer.areas?.slice(0,2).join(" and ") || targetArea;
-          const yrs = bestReviewer.years ? `${bestReviewer.years}+ years` : "extensive experience";
-          const company = bestReviewer.company ? ` at ${bestReviewer.company}` : "";
-          rationale = `Your reviewer brings ${yrs} of experience in ${areas}${company}, well-suited to give feedback on a ${targetRole} resume.`;
+          // Use Claude's specific reasoning for this reviewer-candidate pair
+          rationale = best.reasoning || `${bestReviewer.name}'s expertise in ${bestReviewer.areas?.[0] || targetArea} is well-suited for ${targetRole}.`;
         }
       }
       // If no reviewer clears the bar, bestReviewer stays null → falls through to waitlist below
@@ -355,7 +398,7 @@ ${reviewerSummaries}`;
     }
   }
 
-  res.json({ candidate, reviewer: bestReviewer, match, rationale });
+  res.json({ candidate, reviewer: bestReviewer, match, rationale, redactions: redactions.length > 0 ? redactions : undefined });
 });
 
 // Get all candidate submissions for current user
@@ -387,6 +430,82 @@ app.get("/api/candidates/:id/status", requireAuth, (req, res) => {
   res.json({ candidate, matches });
 });
 
+app.get("/api/candidates/:id/file", requireAuth, (req, res) => {
+  const candidate = findById("candidates", req.params.id);
+  if (!candidate?.fileBase64) return res.status(404).json({ error: "No file available" });
+  const buf = Buffer.from(candidate.fileBase64, "base64");
+  res.set("Content-Type", candidate.fileType || "application/pdf");
+  res.set("Content-Disposition", `inline; filename="${candidate.fileName || "resume.pdf"}"`);
+  res.send(buf);
+});
+
+// ─── Waitlist backfill ────────────────────────────────────────────────────────
+async function drainWaitlist(freedReviewerId) {
+  const MAX_ACTIVE_REVIEWS = 3;
+  const MIN_MATCH_SCORE = 5;
+  const pendingCount = db.matches.filter(m => m.reviewer_id === freedReviewerId && m.status === "pending").length;
+  const slotsAvailable = MAX_ACTIVE_REVIEWS - pendingCount;
+  if (slotsAvailable <= 0) return;
+
+  const reviewer = findById("reviewers", freedReviewerId);
+  if (!reviewer) return;
+  const reviewerUser = db.users.find(u => u.reviewer_id === freedReviewerId);
+
+  const waitlisted = db.matches.filter(m => m.status === "waitlist");
+  if (waitlisted.length === 0) return;
+
+  const eligible = waitlisted.filter(wm => {
+    const candidate = findById("candidates", wm.candidate_id);
+    if (!candidate) return false;
+    const candUser = db.users.find(u => u.candidate_ids?.includes(candidate.id));
+    if (reviewerUser && candUser && reviewerUser.id === candUser.id) return false;
+    const alreadyMatched = db.matches.some(m => m.reviewer_id === freedReviewerId && m.candidate_id === candidate.id && m.status !== "waitlist");
+    return !alreadyMatched;
+  });
+  if (eligible.length === 0) return;
+
+  let filled = 0;
+  for (const wm of eligible) {
+    if (filled >= slotsAvailable) break;
+    const candidate = findById("candidates", wm.candidate_id);
+    if (!candidate) continue;
+    try {
+      const sys = `You are a matching engine. Rate how well this reviewer fits this candidate. Return JSON only: {"score": <1-10>, "reasoning": "<one sentence>"}`;
+      const prompt = `Reviewer: ${reviewer.name}, ${reviewer.role} at ${reviewer.company}, ${reviewer.years} years, areas: [${reviewer.areas.join(", ")}]\n\nCandidate: ${candidate.name}, targeting ${candidate.targetRole} in ${candidate.targetArea}\nResume excerpt: ${(candidate.resume || "").slice(0, 800)}`;
+      const raw = await callClaude(sys, prompt, 200);
+      const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+      const result = JSON.parse(cleaned);
+      if (result.score >= MIN_MATCH_SCORE) {
+        wm.reviewer_id = freedReviewerId;
+        wm.status = "pending";
+        wm.rationale = result.reasoning || `${reviewer.name}'s expertise in ${reviewer.areas[0]} aligns with ${candidate.targetRole}.`;
+        saveDB();
+        filled++;
+        if (reviewerUser?.email) {
+          sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurio",
+            html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>` });
+        }
+      }
+    } catch (e) { console.error(`[backfill] Error matching waitlisted candidate ${candidate.id}:`, e.message); }
+  }
+  if (filled > 0) console.log(`[backfill] Assigned ${filled} waitlisted candidate(s) to reviewer ${freedReviewerId}`);
+}
+
+// ─── Resume info extraction ──────────────────────────────────────────────────
+app.post("/api/extract-resume-info", requireAuth, async (req, res) => {
+  const { resumeText } = req.body;
+  if (!resumeText?.trim()) return res.status(400).json({ error: "resumeText required" });
+  try {
+    const sys = `Extract structured info from this resume. Return JSON only, no markdown:\n{"role": "current job title", "company": "current company", "years": "one of: 1–3, 4–6, 7–10, 10–15, 15+", "areas": ["matching areas from this list: Software Engineering, AI/ML, Data Science, Product Management, Design, DevOps, Security, Mobile Development, Blockchain, Frontend, Backend, Cloud Infrastructure, Distributed Systems, UX, UX Research, NLP, Computer Vision, Data Engineering, Analytics, Product Analytics, Strategy, Full Stack"]}`;
+    const raw = await callClaude(sys, resumeText.slice(0, 2000), 300);
+    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+    const info = JSON.parse(cleaned);
+    res.json(info);
+  } catch (e) {
+    res.status(500).json({ error: "Could not extract info from resume" });
+  }
+});
+
 // ─── Feedback routes ──────────────────────────────────────────────────────────
 app.post("/api/feedback", requireAuth, (req, res) => {
   const { matchId, body } = req.body;
@@ -394,10 +513,11 @@ app.post("/api/feedback", requireAuth, (req, res) => {
   const match = findById("matches", matchId);
   if (!match) return res.status(404).json({ error: "Match not found" });
   match.status = "done";
-  saveDB();
   const fb = insert("feedback", { match_id: Number(matchId), body });
-  match.status = "done";
   saveDB();
+
+  // Backfill waitlisted candidates into freed reviewer slot
+  drainWaitlist(match.reviewer_id).catch(e => console.error("[backfill] Error:", e.message));
 
   // Notify candidate by email
   const candidate = findById("candidates", match.candidate_id);
@@ -413,6 +533,34 @@ app.post("/api/feedback", requireAuth, (req, res) => {
     });
   }
 
+  res.json({ feedback: fb });
+});
+
+// Score feedback quality via AI before submission
+app.post("/api/feedback/score", requireAuth, async (req, res) => {
+  const { feedbackText, candidateTargetRole } = req.body;
+  if (!feedbackText?.trim()) return res.status(400).json({ error: "feedbackText required" });
+  try {
+    const sys = `Score this resume review feedback on a 1-10 scale. Return JSON only: {"score": <1-10>, "suggestion": "<one sentence to improve the feedback, or empty if score >= 7>"}
+Score based on: specificity (does it reference specific parts of the resume?), actionability (can the candidate act on it?), depth (more than surface-level?), tone (constructive, not harsh?).`;
+    const raw = await callClaude(sys, `Feedback for a ${candidateTargetRole} resume:\n\n${feedbackText}`, 200);
+    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+    const result = JSON.parse(cleaned);
+    res.json(result);
+  } catch (e) {
+    res.json({ score: 5, suggestion: "" }); // graceful fallback
+  }
+});
+
+// Candidate rates the feedback they received
+app.post("/api/feedback/:id/rating", requireAuth, (req, res) => {
+  const fb = findById("feedback", req.params.id);
+  if (!fb) return res.status(404).json({ error: "Feedback not found" });
+  const { rating, comment } = req.body;
+  if (!rating || rating < 1 || rating > 5) return res.status(400).json({ error: "Rating must be 1-5" });
+  fb.candidateRating = rating;
+  fb.candidateComment = comment || "";
+  saveDB();
   res.json({ feedback: fb });
 });
 
