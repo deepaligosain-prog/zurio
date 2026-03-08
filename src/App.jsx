@@ -413,7 +413,7 @@ function ReviewerSignup({ user, onDone }) {
 
       <div className="field">
         <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — improves matching)</span></label>
-        {candidateResume && fileName.startsWith("Pre-filled") && (
+        {form.resumeText && fileName.startsWith("Pre-filled") && (
           <div style={{background:"var(--cream)",border:"1px solid var(--amber)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--ink-muted)",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
             <span>✦</span>
             <span>Pre-filled from your candidate submission — upload a different file to replace it.</span>
