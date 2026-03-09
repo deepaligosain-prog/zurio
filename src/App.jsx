@@ -767,14 +767,15 @@ function InlineReview({ match, onBack, onDone }) {
             <span className="panel-title">Candidate Resume</span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <span className="badge blue">Confidential</span>
-              {fileBlobUrl && <a href={fileBlobUrl} download={match.candidate?.name ? `${match.candidate.name} Resume.pdf` : "resume.pdf"} className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}}>Download</a>}
+              {fileBlobUrl && <a href={fileBlobUrl} download="resume.pdf" className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}}>Download PDF</a>}
+              {!fileBlobUrl && match.candidate?.resume && <button className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>{const blob=new Blob([match.candidate.resume],{type:"text/plain"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="resume.txt";a.click();URL.revokeObjectURL(url);}}>Download Text</button>}
             </div>
           </div>
           <div className="panel-body">
             {fileBlobUrl ? (
               <iframe src={fileBlobUrl} style={{width:"100%",height:500,border:"none",borderRadius:8}} title="Resume PDF" />
             ) : (
-              <div className="resume-text">{match.candidate?.resume}</div>
+              <div className="resume-text" style={{whiteSpace:"pre-wrap",lineHeight:1.7,fontSize:13.5,fontFamily:"'Inter','Segoe UI',sans-serif",padding:"20px 24px",background:"white",borderRadius:8,border:"1px solid var(--border)",maxHeight:500,overflowY:"auto"}}>{match.candidate?.resume || "No resume text available."}</div>
             )}
           </div>
         </div>
@@ -812,11 +813,18 @@ function InlineReview({ match, onBack, onDone }) {
                 {scoring ? <><span className="spinner dark" style={{width:14,height:14}}/>Checking quality...</> : "Preview & Score Feedback"}
               </button>
             ) : (
-              <div style={{display:"flex",gap:8}}>
-                <button className="action-btn outline" style={{flex:1,padding:"12px",fontSize:13}} onClick={()=>setAiScore(null)}>Edit & Re-score</button>
-                <button className="action-btn amber-btn" style={{flex:2,padding:"12px",fontSize:14}} onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? <><span className="spinner"/>Sending...</> : "Send Feedback to Candidate →"}
-                </button>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {aiScore.score < 6 && (
+                  <div style={{fontSize:13,color:"#c62828",background:"#fce4ec",padding:"10px 14px",borderRadius:8,lineHeight:1.5}}>
+                    ⚠️ Your feedback scored {aiScore.score}/10 — it needs to be more specific and actionable before you can send it. Please revise and re-score.
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="action-btn outline" style={{flex:1,padding:"12px",fontSize:13}} onClick={()=>setAiScore(null)}>Edit & Re-score</button>
+                  <button className="action-btn amber-btn" style={{flex:2,padding:"12px",fontSize:14,opacity:aiScore.score<6?0.4:1}} onClick={handleSubmit} disabled={submitting || aiScore.score < 6}>
+                    {submitting ? <><span className="spinner"/>Sending...</> : aiScore.score < 6 ? "Score too low to send" : "Send Feedback to Candidate →"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
