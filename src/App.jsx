@@ -671,7 +671,7 @@ function ReviewerDashboard({ reviewerId, user }) {
           No matches yet — you'll be notified when a candidate is paired with you.
         </div>
       )}
-      {matches.map((m,i) => <MatchCard key={i} match={m} onRefresh={load} />)}
+      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map((m,i) => <MatchCard key={i} match={m} onRefresh={load} />)}
     </div>
   );
 }
@@ -691,7 +691,6 @@ function MatchCard({ match, onRefresh }) {
         </div>
         <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Reviewed":"● Awaiting Review"}</span>
       </div>
-      {match.rationale && <div className="rationale-box"><div className="rationale-label">AI Match Rationale</div><div className="rationale-text">{match.rationale}</div></div>}
       {match.status === "pending" && <button className="action-btn amber-btn" onClick={()=>setShowReview(true)}>Write Review →</button>}
     </div>
   );
@@ -723,11 +722,11 @@ function InlineReview({ match, onBack, onDone }) {
         .line { margin-bottom: 2px; }
         .section-head { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 18px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e5e2db; color: #44403C; }
         .first-line { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-      </style></head><body>${resumeText.split("\\n").map((line, i) => {
+      </style></head><body>${resumeText.split("\n").map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return '<div style="height:10px"></div>';
         if (i === 0) return '<div class="first-line">' + trimmed.replace(/</g,"&lt;") + '</div>';
-        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2 && trimmed.length < 60 && !/\\d{3}/.test(trimmed))
+        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2 && trimmed.length < 60 && !/\d{3}/.test(trimmed))
           return '<div class="section-head">' + trimmed.replace(/</g,"&lt;") + '</div>';
         return '<div class="line">' + trimmed.replace(/</g,"&lt;") + '</div>';
       }).join("")}</body></html>`;
@@ -939,10 +938,10 @@ function SubmissionCard({ submission }) {
               </div>
             </div>
           </div>
-          {match.rationale && (
+          {match.reviewer?.areas?.length > 0 && (
             <div className="rationale-box" style={{marginTop:14}}>
               <div className="rationale-label">Why this match</div>
-              <div className="rationale-text">{match.rationale}</div>
+              <div className="rationale-text">Your reviewer has {match.reviewer.years}+ years of experience in {match.reviewer.areas.slice(0,2).join(" and ")}, relevant to your {candidate.targetRole} goals.</div>
             </div>
           )}
           {match.feedback && (
