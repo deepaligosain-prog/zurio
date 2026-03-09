@@ -537,7 +537,8 @@ Return ONLY the JSON object.`;
     res.json(info);
   } catch (e) {
     console.error("[extract-resume-info] Error:", e.message);
-    res.status(500).json({ error: "Could not extract info from resume" });
+    // Return empty defaults so the form still works — user can fill manually
+    res.json({ role: "", company: "", years: "", areas: [], aiUnavailable: true });
   }
 });
 
@@ -600,7 +601,8 @@ A single word or phrase like "good" or "honest" or "nice resume" MUST score 1-2.
     const result = JSON.parse(cleaned);
     res.json(result);
   } catch (e) {
-    res.json({ score: 3, suggestion: "Could not score your feedback. Please ensure it includes specific, actionable observations about the resume." });
+    console.error("[feedback/score] AI scoring failed:", e.message);
+    res.json({ score: 7, suggestion: "AI scoring is temporarily unavailable. Your feedback has been auto-approved — please ensure it contains specific, actionable observations.", aiUnavailable: true });
   }
 });
 
