@@ -131,7 +131,15 @@ app.post("/auth/login", async (req, res) => {
   const normalizedEmail = email.toLowerCase().trim();
   const user = findByField("users", "email", normalizedEmail);
   if (!user) return res.status(401).json({ error: "No account found with this email. Please create an account first." });
-  if (!user.passwordHash) return res.status(401).json({ error: "This account was created before passwords were required. Please contact support." });
+  // Legacy migration: first login with password sets it permanently
+  if (!user.passwordHash) {
+    if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
+    user.passwordHash = await bcrypt.hash(password, 10);
+    saveDB();
+    req.session.userId = user.id;
+    const { passwordHash: _, ...safeUser } = user;
+    return res.json({ user: safeUser });
+  }
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: "Incorrect password." });
   req.session.userId = user.id;
