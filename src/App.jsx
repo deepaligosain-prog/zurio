@@ -706,13 +706,34 @@ function InlineReview({ match, onBack, onDone }) {
   const [done, setDone] = useState(false);
   const [fileBlobUrl, setFileBlobUrl] = useState(null);
 
-  // Load the original file if available
+  // Load the original file if available, or generate a styled HTML doc from text
   useEffect(() => {
-    if (!match.candidate?.hasFile) return;
-    fetch(`/api/candidates/${match.candidate.id}/file`, { credentials: "include" })
-      .then(r => r.ok ? r.blob() : null)
-      .then(blob => { if (blob) setFileBlobUrl(URL.createObjectURL(blob)); })
-      .catch(() => {});
+    if (match.candidate?.hasFile) {
+      fetch(`/api/candidates/${match.candidate.id}/file`, { credentials: "include" })
+        .then(r => r.ok ? r.blob() : null)
+        .then(blob => { if (blob) setFileBlobUrl(URL.createObjectURL(blob)); })
+        .catch(() => {});
+    } else if (match.candidate?.resume) {
+      // Generate a styled HTML document from plain text so it renders nicely in an iframe
+      const resumeText = match.candidate.resume;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; font-size: 13px; line-height: 1.7; color: #1C1917; padding: 40px 44px; max-width: 800px; margin: 0 auto; background: white; }
+        .line { margin-bottom: 2px; }
+        .section-head { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 18px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1.5px solid #e5e2db; color: #44403C; }
+        .first-line { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+      </style></head><body>${resumeText.split("\\n").map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return '<div style="height:10px"></div>';
+        if (i === 0) return '<div class="first-line">' + trimmed.replace(/</g,"&lt;") + '</div>';
+        if (trimmed === trimmed.toUpperCase() && trimmed.length > 2 && trimmed.length < 60 && !/\\d{3}/.test(trimmed))
+          return '<div class="section-head">' + trimmed.replace(/</g,"&lt;") + '</div>';
+        return '<div class="line">' + trimmed.replace(/</g,"&lt;") + '</div>';
+      }).join("")}</body></html>`;
+      const blob = new Blob([html], { type: "text/html" });
+      setFileBlobUrl(URL.createObjectURL(blob));
+    }
     return () => { if (fileBlobUrl) URL.revokeObjectURL(fileBlobUrl); };
   }, [match.candidate?.id]);
 
@@ -767,15 +788,15 @@ function InlineReview({ match, onBack, onDone }) {
             <span className="panel-title">Candidate Resume</span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <span className="badge blue">Confidential</span>
-              {fileBlobUrl && <a href={fileBlobUrl} download="resume.pdf" className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}}>Download PDF</a>}
-              {!fileBlobUrl && match.candidate?.resume && <button className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>{const blob=new Blob([match.candidate.resume],{type:"text/plain"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="resume.txt";a.click();URL.revokeObjectURL(url);}}>Download Text</button>}
+              {match.candidate?.hasFile && fileBlobUrl && <a href={fileBlobUrl} download="resume.pdf" className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}}>Download PDF</a>}
+              {match.candidate?.resume && <button className="action-btn outline" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>{const blob=new Blob([match.candidate.resume],{type:"text/plain"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="resume.txt";a.click();URL.revokeObjectURL(url);}}>Download Text</button>}
             </div>
           </div>
           <div className="panel-body">
             {fileBlobUrl ? (
-              <iframe src={fileBlobUrl} style={{width:"100%",height:500,border:"none",borderRadius:8}} title="Resume PDF" />
+              <iframe src={fileBlobUrl} style={{width:"100%",height:500,border:"none",borderRadius:8,background:"white"}} title="Resume" />
             ) : (
-              <div className="resume-text" style={{whiteSpace:"pre-wrap",lineHeight:1.7,fontSize:13.5,fontFamily:"'Inter','Segoe UI',sans-serif",padding:"20px 24px",background:"white",borderRadius:8,border:"1px solid var(--border)",maxHeight:500,overflowY:"auto"}}>{match.candidate?.resume || "No resume text available."}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:300,color:"var(--ink-muted)",fontSize:14}}>Loading resume...</div>
             )}
           </div>
         </div>
