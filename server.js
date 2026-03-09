@@ -236,15 +236,29 @@ app.get("/api/reviewers/:id", requireAuth, (req, res) => {
       if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) return null;
       // Strip resume from candidate summary — reviewer only needs name + targetRole for the card
       // Full resume is only sent in InlineReview (separate fetch)
-      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
+      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: "Anonymous Candidate", targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
     })
     .filter(Boolean);
   res.json({ reviewer, matches });
 });
 
 // ─── PII detection & redaction ────────────────────────────────────────────────
-function redactPII(text) {
+function redactPII(text, candidateName) {
   const redactions = [];
+  // First, redact the candidate's own name from the resume text
+  if (candidateName) {
+    const nameParts = candidateName.trim().split(/\s+/);
+    // Redact full name
+    const fullNameRegex = new RegExp(candidateName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    text = text.replace(fullNameRegex, (match) => { redactions.push({ type: "name", original: match }); return "[NAME REDACTED]"; });
+    // Redact individual name parts (first name, last name) if 3+ chars
+    for (const part of nameParts) {
+      if (part.length >= 3) {
+        const partRegex = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        text = text.replace(partRegex, (match) => { redactions.push({ type: "name", original: match }); return "[NAME REDACTED]"; });
+      }
+    }
+  }
   const patterns = [
     { name: "phone", regex: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g },
     { name: "email", regex: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Z]{2,}\b/gi },
@@ -269,7 +283,7 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
 
   // Redact PII from resume text
-  const { redacted: cleanResume, redactions } = redactPII(resume);
+  const { redacted: cleanResume, redactions } = redactPII(resume, name);
 
   // Always create a new candidate submission (one user can have multiple)
   const { label } = req.body; // optional user-override label
@@ -548,15 +562,32 @@ app.post("/api/feedback", requireAuth, (req, res) => {
 app.post("/api/feedback/score", requireAuth, async (req, res) => {
   const { feedbackText, candidateTargetRole } = req.body;
   if (!feedbackText?.trim()) return res.status(400).json({ error: "feedbackText required" });
+
+  // Hard minimum: feedback must be at least 50 characters and 2+ sentences
+  const wordCount = feedbackText.trim().split(/\s+/).length;
+  if (wordCount < 15) {
+    return res.json({ score: 1, suggestion: "Your feedback is too short. Please write at least a few sentences with specific observations about the resume.", minNotMet: true });
+  }
+
   try {
-    const sys = `Score this resume review feedback on a 1-10 scale. Return JSON only: {"score": <1-10>, "suggestion": "<one sentence to improve the feedback, or empty if score >= 7>"}
-Score based on: specificity (does it reference specific parts of the resume?), actionability (can the candidate act on it?), depth (more than surface-level?), tone (constructive, not harsh?).`;
+    const sys = `You are a strict quality checker for resume review feedback. Score on a 1-10 scale. Be HARSH — most feedback should score below 5 unless it's genuinely useful.
+
+SCORING RULES:
+- 1-2: Garbage (single words, random text, irrelevant content, too vague to be useful)
+- 3-4: Low effort (generic advice like "looks good" or "needs work" with no specifics)
+- 5-6: Mediocre (some relevant points but lacks specific references to resume content)
+- 7-8: Good (references specific resume sections, gives actionable suggestions)
+- 9-10: Excellent (detailed, specific, actionable, references multiple resume elements)
+
+Return JSON only: {"score": <1-10>, "suggestion": "<specific instruction on what to add or fix to improve the feedback>"}
+
+A single word or phrase like "good" or "honest" or "nice resume" MUST score 1. Generic advice without referencing specific resume content MUST score below 5.`;
     const raw = await callClaude(sys, `Feedback for a ${candidateTargetRole} resume:\n\n${feedbackText}`, 200);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     const result = JSON.parse(cleaned);
     res.json(result);
   } catch (e) {
-    res.json({ score: 5, suggestion: "" }); // graceful fallback
+    res.json({ score: 3, suggestion: "Could not score your feedback. Please ensure it includes specific, actionable observations about the resume." });
   }
 });
 
