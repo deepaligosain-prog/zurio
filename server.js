@@ -518,13 +518,27 @@ app.post("/api/extract-resume-info", requireAuth, async (req, res) => {
   const { resumeText } = req.body;
   if (!resumeText?.trim()) return res.status(400).json({ error: "resumeText required" });
   try {
-    const sys = `Extract structured info from this resume. Return JSON only, no markdown:\n{"role": "current job title", "company": "current company", "years": "one of: 1–3, 4–6, 7–10, 10–15, 15+", "areas": ["matching areas from this list: Software Engineering, AI/ML, Data Science, Product Management, Design, DevOps, Security, Mobile Development, Blockchain, Frontend, Backend, Cloud Infrastructure, Distributed Systems, UX, UX Research, NLP, Computer Vision, Data Engineering, Analytics, Product Analytics, Strategy, Full Stack"]}`;
+    const sys = `You extract structured info from resumes. You MUST return ONLY a valid JSON object with no explanation, no markdown, no code fences. Example format:
+{"role": "Software Engineer", "company": "Google", "years": "4–6", "areas": ["Software Engineering", "Backend"]}
+
+Fields:
+- role: current or most recent job title (string)
+- company: current or most recent company (string)
+- years: total experience, one of: "1–3", "4–6", "7–10", "10–15", "15+"
+- areas: 1-4 items from: Software Engineering, AI/ML, Data Science, Product Management, Design, DevOps, Security, Mobile Development, Blockchain, Frontend, Backend, Cloud Infrastructure, Distributed Systems, UX, UX Research, NLP, Computer Vision, Data Engineering, Analytics, Product Analytics, Strategy, Full Stack
+
+Return ONLY the JSON object.`;
     const raw = await callClaude(sys, resumeText.slice(0, 2000), 300);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-    const info = JSON.parse(cleaned);
+    // Try to extract JSON from the response even if there's extra text
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON in response");
+    const info = JSON.parse(jsonMatch[0]);
     res.json(info);
   } catch (e) {
-    res.status(500).json({ error: "Could not extract info from resume" });
+    console.error("[extract-resume-info] Error:", e.message);
+    // Return empty defaults so the form still works — user can fill manually
+    res.json({ role: "", company: "", years: "", areas: [], aiUnavailable: true });
   }
 });
 
@@ -570,24 +584,25 @@ app.post("/api/feedback/score", requireAuth, async (req, res) => {
   }
 
   try {
-    const sys = `You are a strict quality checker for resume review feedback. Score on a 1-10 scale. Be HARSH — most feedback should score below 5 unless it's genuinely useful.
+    const sys = `You are a quality checker for resume review feedback. Score on a 1-10 scale.
 
 SCORING RULES:
-- 1-2: Garbage (single words, random text, irrelevant content, too vague to be useful)
-- 3-4: Low effort (generic advice like "looks good" or "needs work" with no specifics)
-- 5-6: Mediocre (some relevant points but lacks specific references to resume content)
-- 7-8: Good (references specific resume sections, gives actionable suggestions)
-- 9-10: Excellent (detailed, specific, actionable, references multiple resume elements)
+- 1-2: Garbage (single words, random text, irrelevant content, "looks good", "nice resume")
+- 3-4: Low effort (generic advice with no specifics, e.g. "needs work" or "add more details")
+- 5-6: Decent (mentions relevant topics but could be more specific or actionable)
+- 7-8: Good (gives actionable suggestions, mentions specific areas to improve)
+- 9-10: Excellent (detailed, specific, actionable, references multiple resume elements with concrete advice)
 
 Return JSON only: {"score": <1-10>, "suggestion": "<specific instruction on what to add or fix to improve the feedback>"}
 
-A single word or phrase like "good" or "honest" or "nice resume" MUST score 1. Generic advice without referencing specific resume content MUST score below 5.`;
+A single word or phrase like "good" or "honest" or "nice resume" MUST score 1-2. Feedback that gives numbered actionable suggestions referencing specific resume sections should score 7+.`;
     const raw = await callClaude(sys, `Feedback for a ${candidateTargetRole} resume:\n\n${feedbackText}`, 200);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     const result = JSON.parse(cleaned);
     res.json(result);
   } catch (e) {
-    res.json({ score: 3, suggestion: "Could not score your feedback. Please ensure it includes specific, actionable observations about the resume." });
+    console.error("[feedback/score] AI scoring failed:", e.message);
+    res.json({ score: 7, suggestion: "AI scoring is temporarily unavailable. Your feedback has been auto-approved — please ensure it contains specific, actionable observations.", aiUnavailable: true });
   }
 });
 
