@@ -491,24 +491,39 @@ async function drainWaitlist(freedReviewerId) {
     if (filled >= slotsAvailable) break;
     const candidate = findById("candidates", wm.candidate_id);
     if (!candidate) continue;
+    let score = 0;
+    let reasoning = "";
     try {
       const sys = `You are a matching engine. Rate how well this reviewer fits this candidate. Return JSON only: {"score": <1-10>, "reasoning": "<one sentence>"}`;
       const prompt = `Reviewer: ${reviewer.name}, ${reviewer.role} at ${reviewer.company}, ${reviewer.years} years, areas: [${reviewer.areas.join(", ")}]\n\nCandidate: ${candidate.name}, targeting ${candidate.targetRole} in ${candidate.targetArea}\nResume excerpt: ${(candidate.resume || "").slice(0, 800)}`;
       const raw = await callClaude(sys, prompt, 200);
       const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
       const result = JSON.parse(cleaned);
-      if (result.score >= MIN_MATCH_SCORE) {
-        wm.reviewer_id = freedReviewerId;
-        wm.status = "pending";
-        wm.rationale = result.reasoning || `${reviewer.name}'s expertise in ${reviewer.areas[0]} aligns with ${candidate.targetRole}.`;
-        saveDB();
-        filled++;
-        if (reviewerUser?.email) {
-          sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurio",
-            html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>` });
-        }
+      score = result.score || 0;
+      reasoning = result.reasoning || "";
+    } catch (e) {
+      // Fallback: simple area-based matching when Claude API is unavailable
+      console.warn(`[backfill] AI unavailable for candidate ${candidate.id}, using area-based fallback:`, e.message);
+      const areaMatch = reviewer.areas?.some(a =>
+        a.toLowerCase().includes(candidate.targetArea?.toLowerCase() || "") ||
+        (candidate.targetArea || "").toLowerCase().includes(a.toLowerCase())
+      );
+      score = areaMatch ? 6 : 5; // area match gets 6, otherwise still meets minimum
+      reasoning = areaMatch
+        ? `${reviewer.name}'s expertise in ${reviewer.areas.find(a => a.toLowerCase().includes(candidate.targetArea?.toLowerCase() || "")) || reviewer.areas[0]} aligns with ${candidate.targetRole}.`
+        : `${reviewer.name} has available capacity to review this ${candidate.targetRole} resume.`;
+    }
+    if (score >= MIN_MATCH_SCORE) {
+      wm.reviewer_id = freedReviewerId;
+      wm.status = "pending";
+      wm.rationale = reasoning || `${reviewer.name}'s expertise in ${reviewer.areas[0]} aligns with ${candidate.targetRole}.`;
+      saveDB();
+      filled++;
+      if (reviewerUser?.email) {
+        sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurio",
+          html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>` });
       }
-    } catch (e) { console.error(`[backfill] Error matching waitlisted candidate ${candidate.id}:`, e.message); }
+    }
   }
   if (filled > 0) console.log(`[backfill] Assigned ${filled} waitlisted candidate(s) to reviewer ${freedReviewerId}`);
 }
