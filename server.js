@@ -15,7 +15,7 @@ const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 app.set("trust proxy", 1);
 app.use(cors({ origin: CLIENT_URL, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 app.use(session({
   secret: process.env.SESSION_SECRET || "zurio-dev-secret-change-in-prod",
@@ -638,6 +638,33 @@ app.post("/api/claude", requireAuth, async (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
+  res.json({ ok: true, users: db.users.length, reviewers: db.reviewers.length, candidates: db.candidates.length });
+});
+
+// ─── Admin: DB export/import (protected by ADMIN_SECRET) ─────────────────────
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "zurio-admin-local";
+
+function checkAdmin(req, res, next) {
+  const token = req.headers["x-admin-secret"] || req.query.secret;
+  if (token !== ADMIN_SECRET) return res.status(403).json({ error: "Forbidden" });
+  next();
+}
+
+app.get("/api/admin/export", checkAdmin, (req, res) => {
+  res.json({ db, nextId, exportedAt: new Date().toISOString() });
+});
+
+app.post("/api/admin/import", checkAdmin, express.json({ limit: "50mb" }), (req, res) => {
+  const { db: importedDb, nextId: importedNextId } = req.body;
+  if (!importedDb || !importedNextId) return res.status(400).json({ error: "Invalid payload — need { db, nextId }" });
+  db = importedDb;
+  if (!db.users) db.users = [];
+  if (!db.reviewers) db.reviewers = [];
+  if (!db.candidates) db.candidates = [];
+  if (!db.matches) db.matches = [];
+  if (!db.feedback) db.feedback = [];
+  nextId = importedNextId;
+  saveDB();
   res.json({ ok: true, users: db.users.length, reviewers: db.reviewers.length, candidates: db.candidates.length });
 });
 
