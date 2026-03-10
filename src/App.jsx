@@ -72,6 +72,47 @@ const style = `
   .google-icon { width: 20px; height: 20px; }
   .login-note { font-size: 12px; color: var(--ink-muted); margin-top: 20px; line-height: 1.6; }
 
+  /* Marketing landing page */
+  .marketing-page { max-width: 100%; overflow-x: hidden; }
+  .landing-section { padding: 80px 24px; max-width: 860px; margin: 0 auto; }
+  .landing-section.hero { padding-top: 100px; padding-bottom: 60px; text-align: center; }
+  .hero-wordmark { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; margin-bottom: 28px; }
+  .hero-wordmark span { color: var(--amber); }
+  .hero-headline { font-family: 'Fraunces', serif; font-size: clamp(32px, 5vw, 52px); font-weight: 300; line-height: 1.12; margin-bottom: 20px; color: var(--ink); }
+  .hero-headline em { font-style: italic; color: var(--amber); }
+  .hero-sub { font-size: 18px; color: var(--ink-muted); line-height: 1.65; max-width: 520px; margin: 0 auto 36px; }
+  .hero-cta { display: inline-flex; align-items: center; gap: 8px; padding: 15px 32px; background: var(--amber); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.18s; font-family: 'Instrument Sans', sans-serif; box-shadow: var(--shadow); }
+  .hero-cta:hover { opacity: 0.88; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+  .landing-section.steps { background: white; padding: 72px 24px; max-width: 100%; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .steps-inner { max-width: 860px; margin: 0 auto; }
+  .section-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--amber); margin-bottom: 12px; text-align: center; }
+  .section-title { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; text-align: center; margin-bottom: 48px; }
+  .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+  .step-card { text-align: center; padding: 24px 16px; }
+  .step-num { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--amber); margin-bottom: 14px; font-weight: 500; }
+  .step-icon { font-size: 36px; margin-bottom: 14px; }
+  .step-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 400; margin-bottom: 10px; }
+  .step-desc { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
+  @media (max-width: 640px) { .steps-grid { grid-template-columns: 1fr; gap: 16px; } }
+
+  .landing-section.compare { padding: 72px 24px; }
+  .compare-inner { max-width: 860px; margin: 0 auto; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 8px; }
+  .compare-col { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 24px; }
+  .compare-col.zurio { border-color: var(--amber); }
+  .compare-col-title { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .compare-col.generic .compare-col-title { color: var(--ink-muted); }
+  .compare-col.zurio .compare-col-title { color: var(--amber); }
+  .compare-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; font-size: 14px; line-height: 1.55; color: var(--ink-light); }
+  .compare-item:last-child { margin-bottom: 0; }
+  .compare-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+  .compare-col.zurio .compare-item { color: var(--ink); }
+  @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+
+  .landing-section.get-started { text-align: center; padding-bottom: 100px; }
+  .get-started-inner { max-width: 440px; margin: 0 auto; }
+
   /* Role picker */
   .role-page { max-width: 560px; margin: 0 auto; padding: 80px 24px; text-align: center; }
   .role-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 40px; }
@@ -307,6 +348,7 @@ function LoginPage({ onLogin }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const formRef = useRef(null);
 
   const handleSubmit = async () => {
     setError("");
@@ -332,39 +374,141 @@ function LoginPage({ onLogin }) {
 
   const onKey = e => e.key === "Enter" && handleSubmit();
 
+  const scrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
-    <div className="login-page">
-      <div className="login-logo">Zurio</div>
-      <p className="login-tagline">Real resume feedback from people who've been in your shoes — matched by field and experience.</p>
-      {error && <div className="error-banner" style={{marginBottom:16}}>{error}</div>}
-      <div style={{display:"flex",gap:0,marginBottom:20,background:"var(--cream)",borderRadius:10,padding:3,width:"100%",maxWidth:340}}>
-        <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="login"?"white":"transparent",color:mode==="login"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="login"?"var(--shadow)":"none",transition:"all 0.18s"}}>Sign In</button>
-        <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="register"?"white":"transparent",color:mode==="register"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="register"?"var(--shadow)":"none",transition:"all 0.18s"}}>Create Account</button>
-      </div>
-      {mode === "register" && (
-        <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left"}}>
-          <label>Your name</label>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Deepali Gosain" onKeyDown={onKey} />
+    <div className="marketing-page">
+      {/* ── Hero ── */}
+      <section className="landing-section hero">
+        <div className="hero-wordmark">Zurio</div>
+        <h1 className="hero-headline">
+          Your resume deserves <em>better</em> than generic advice
+        </h1>
+        <p className="hero-sub">
+          Get honest, specific feedback from a real professional in your field — not a bot, not a sales pitch.
+        </p>
+        <button className="hero-cta" onClick={scrollToForm}>
+          Get Started — It's Free →
+        </button>
+      </section>
+
+      {/* ── How It Works ── */}
+      <section className="landing-section steps">
+        <div className="steps-inner">
+          <div className="section-eyebrow">How it works</div>
+          <h2 className="section-title">Three steps to real feedback</h2>
+          <div className="steps-grid">
+            <div className="step-card">
+              <div className="step-num">01</div>
+              <div className="step-icon">📄</div>
+              <h3 className="step-title">Upload your resume</h3>
+              <p className="step-desc">Submit your resume and tell us what role you're targeting. It takes under two minutes.</p>
+            </div>
+            <div className="step-card">
+              <div className="step-num">02</div>
+              <div className="step-icon">🤝</div>
+              <h3 className="step-title">Get matched</h3>
+              <p className="step-desc">We pair you with a volunteer reviewer who's actually worked in your field and knows what matters.</p>
+            </div>
+            <div className="step-card">
+              <div className="step-num">03</div>
+              <div className="step-icon">✍️</div>
+              <h3 className="step-title">Receive real feedback</h3>
+              <p className="step-desc">Specific, actionable advice from someone who knows what hiring managers in your area look for.</p>
+            </div>
+          </div>
         </div>
-      )}
-      <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
-        <label>Email address</label>
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={onKey} />
-      </div>
-      <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
-        <label>Password</label>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 6 characters":"Enter password"} onKeyDown={onKey} />
-      </div>
-      {mode === "register" && (
-        <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12}}>
-          <label>Confirm password</label>
-          <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password" onKeyDown={onKey} />
+      </section>
+
+      {/* ── Comparison ── */}
+      <section className="landing-section compare">
+        <div className="compare-inner">
+          <div className="section-eyebrow">Why Zurio?</div>
+          <h2 className="section-title">Not all resume feedback is created equal</h2>
+          <div className="compare-grid">
+            <div className="compare-col generic">
+              <div className="compare-col-title">Generic review services</div>
+              <div className="compare-item">
+                <span className="compare-icon">❌</span>
+                <span>Automated templates that could apply to anyone's resume</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">❌</span>
+                <span>Vague advice like "sharpen your positioning" — what does that even mean?</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">❌</span>
+                <span>A sales pitch disguised as feedback, upselling paid rewrites</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">❌</span>
+                <span>Reviewed by someone who's never worked in your field</span>
+              </div>
+            </div>
+            <div className="compare-col zurio">
+              <div className="compare-col-title">Zurio</div>
+              <div className="compare-item">
+                <span className="compare-icon">✅</span>
+                <span>Matched with a real professional who's worked in your target field</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">✅</span>
+                <span>Specific advice like "lead your cloud migration bullet with the $2M savings"</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">✅</span>
+                <span>Completely free — no upsell, no hidden costs, ever</span>
+              </div>
+              <div className="compare-item">
+                <span className="compare-icon">✅</span>
+                <span>Honest feedback from someone who's been in your shoes</span>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-      <button className="submit-btn amber" style={{marginTop:20,width:"100%",maxWidth:340}} onClick={handleSubmit} disabled={loading}>
-        {loading ? <><span className="spinner"/>{mode==="register"?"Creating account...":"Signing in..."}</> : mode==="register"?"Create Account →":"Sign In →"}
-      </button>
-      <p className="login-note">Free to use. Your resume data is private and only shared with your matched reviewer.</p>
+      </section>
+
+      {/* ── Get Started (form) ── */}
+      <section className="landing-section get-started" ref={formRef}>
+        <div className="get-started-inner">
+          <div className="section-eyebrow">Get started</div>
+          <h2 className="section-title">Ready for real feedback?</h2>
+
+          {error && <div className="error-banner" style={{marginBottom:16}}>{error}</div>}
+
+          <div style={{display:"flex",gap:0,marginBottom:20,background:"var(--cream)",borderRadius:10,padding:3,width:"100%",maxWidth:340,margin:"0 auto 20px"}}>
+            <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="login"?"white":"transparent",color:mode==="login"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="login"?"var(--shadow)":"none",transition:"all 0.18s"}}>Sign In</button>
+            <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="register"?"white":"transparent",color:mode==="register"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="register"?"var(--shadow)":"none",transition:"all 0.18s"}}>Create Account</button>
+          </div>
+
+          {mode === "register" && (
+            <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",margin:"0 auto"}}>
+              <label>Your name</label>
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Deepali Gosain" onKeyDown={onKey} />
+            </div>
+          )}
+          <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+            <label>Email address</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={onKey} />
+          </div>
+          <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+            <label>Password</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 6 characters":"Enter password"} onKeyDown={onKey} />
+          </div>
+          {mode === "register" && (
+            <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+              <label>Confirm password</label>
+              <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password" onKeyDown={onKey} />
+            </div>
+          )}
+          <button className="submit-btn amber" style={{marginTop:20,width:"100%",maxWidth:340,margin:"20px auto 0"}} onClick={handleSubmit} disabled={loading}>
+            {loading ? <><span className="spinner"/>{mode==="register"?"Creating account...":"Signing in..."}</> : mode==="register"?"Create Account →":"Sign In →"}
+          </button>
+          <p className="login-note" style={{maxWidth:340,margin:"20px auto 0"}}>Free to use. Your resume data is private and only shared with your matched reviewer.</p>
+        </div>
+      </section>
     </div>
   );
 }
