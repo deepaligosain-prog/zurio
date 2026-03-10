@@ -1274,8 +1274,9 @@ function AdminMatchCard({ match: m, reviewers, onRefresh }) {
           </div>
           {m.rationale && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:4,fontStyle:"italic"}}>"{m.rationale}"</div>}
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           <span className={`badge ${m.status==="done"?"green":m.status==="pending"?"amber":"red"}`}>{m.status}</span>
+          {m.reviewer && (() => { const rv = reviewers.find(r=>r.id===m.reviewer.id); return rv && rv.pendingCount > 3 ? <span className="badge red" style={{fontSize:10}}>⚠️ {rv.pendingCount}/3 over capacity</span> : rv ? <span className="badge" style={{fontSize:10}}>{rv.pendingCount}/3 slots</span> : null; })()}
           {m.hasFeedback && <span className="badge green" style={{fontSize:10}}>has feedback</span>}
           {m.feedbackRating && <span style={{fontSize:12}}>{"★".repeat(m.feedbackRating)}</span>}
         </div>
@@ -1286,7 +1287,7 @@ function AdminMatchCard({ match: m, reviewers, onRefresh }) {
           <>
             <select className="admin-select" autoFocus onChange={e => e.target.value && reassign(e.target.value)} onBlur={()=>setReassigning(false)} disabled={busy}>
               <option value="">Pick a reviewer...</option>
-              {reviewers.map(r => <option key={r.id} value={r.id}>{r.name} — {r.role} at {r.company} ({r.pendingCount} pending)</option>)}
+              {reviewers.map(r => <option key={r.id} value={r.id}>{r.pendingCount >= 3 ? "⚠️ " : ""}{r.name} — {r.role} at {r.company} ({r.pendingCount}/3 slots used)</option>)}
             </select>
             <button onClick={()=>setReassigning(false)}>Cancel</button>
           </>
