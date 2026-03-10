@@ -1541,9 +1541,9 @@ export default function App() {
           <div className="nav-wordmark">Zurio</div>
           <span className="badge red" style={{fontSize:11}}>ADMIN MODE</span>
         </nav>
-      ) : (
+      ) : view !== "login" ? (
         <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} onTabSelect={handleTabSelect} currentView={view} />
-      )}
+      ) : null}
 
       {view === "admin-login" && <AdminLogin onAuth={() => setView("admin")} />}
       {view === "admin" && <AdminDashboard />}
