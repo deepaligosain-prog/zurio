@@ -551,9 +551,95 @@ Return ONLY the JSON object.`;
     const info = JSON.parse(jsonMatch[0]);
     res.json(info);
   } catch (e) {
-    console.error("[extract-resume-info] Error:", e.message);
-    // Return empty defaults so the form still works — user can fill manually
-    res.json({ role: "", company: "", years: "", areas: [], aiUnavailable: true });
+    console.error("[extract-resume-info] AI unavailable, using regex fallback:", e.message);
+    // ── Regex-based fallback extraction ──
+    const text = resumeText.slice(0, 3000);
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+    // Extract role: look for common title patterns in first ~15 lines
+    const TITLES = [
+      "Software Engineer", "Senior Software Engineer", "Staff Engineer", "Principal Engineer",
+      "Engineering Manager", "Director of Engineering", "VP of Engineering", "CTO", "CEO", "COO", "CFO",
+      "Product Manager", "Senior Product Manager", "Group Product Manager", "Director of Product",
+      "Data Scientist", "Senior Data Scientist", "ML Engineer", "Machine Learning Engineer", "AI Engineer",
+      "Designer", "UX Designer", "Product Designer", "Senior Designer", "Design Lead",
+      "Frontend Engineer", "Backend Engineer", "Full Stack Engineer", "Fullstack Engineer", "DevOps Engineer",
+      "QA Engineer", "Test Engineer", "Security Engineer", "Penetration Tester",
+      "Data Analyst", "Business Analyst", "Marketing Manager", "Sales Manager",
+      "Program Manager", "Technical Program Manager", "Scrum Master", "Agile Coach",
+      "Solutions Architect", "Cloud Architect", "System Administrator",
+      "Consultant", "Analyst", "Associate", "Manager", "Director", "Vice President",
+    ];
+    let role = "";
+    const headerLines = lines.slice(0, 15).join(" ");
+    for (const t of TITLES) {
+      if (headerLines.toLowerCase().includes(t.toLowerCase())) { role = t; break; }
+    }
+    // Also try "Title at Company" or "Title, Company" patterns
+    const titleAtMatch = headerLines.match(/(?:^|\n)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Engineer|Manager|Designer|Scientist|Developer|Architect|Analyst|Lead|Director|Consultant))\s+(?:at|@|,)\s+([A-Za-z][A-Za-z0-9 &.]+)/i);
+
+    // Extract company
+    let company = "";
+    if (titleAtMatch) {
+      if (!role) role = titleAtMatch[1].trim();
+      company = titleAtMatch[2].trim();
+    }
+    // Try "Company" from "at Company" or "@ Company" in first lines
+    if (!company) {
+      const atMatch = headerLines.match(/(?:at|@)\s+([A-Z][A-Za-z0-9 &.]{1,30})/);
+      if (atMatch) company = atMatch[1].trim();
+    }
+
+    // Extract years of experience
+    let years = "";
+    const yearsMatch = text.match(/(\d{1,2})\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:experience|exp)/i);
+    if (yearsMatch) {
+      const y = parseInt(yearsMatch[1]);
+      if (y <= 3) years = "1–3";
+      else if (y <= 6) years = "4–6";
+      else if (y <= 10) years = "7–10";
+      else if (y <= 15) years = "10–15";
+      else years = "15+";
+    } else {
+      // Estimate from date ranges (e.g., "2015 - 2023", "2018 – Present")
+      const dateRanges = [...text.matchAll(/\b(20\d{2}|19\d{2})\s*[-–—]\s*(20\d{2}|[Pp]resent|[Cc]urrent)\b/g)];
+      if (dateRanges.length > 0) {
+        const starts = dateRanges.map(m => parseInt(m[1]));
+        const earliest = Math.min(...starts);
+        const totalYears = new Date().getFullYear() - earliest;
+        if (totalYears <= 3) years = "1–3";
+        else if (totalYears <= 6) years = "4–6";
+        else if (totalYears <= 10) years = "7–10";
+        else if (totalYears <= 15) years = "10–15";
+        else years = "15+";
+      }
+    }
+
+    // Extract areas from keyword matching
+    const AREA_KEYWORDS = {
+      "Software Engineering": ["software engineer", "backend", "frontend", "full stack", "fullstack", "developer", "coding", "programming"],
+      "AI/ML": ["machine learning", "deep learning", "artificial intelligence", "ai/ml", "ml engineer", "neural network", "tensorflow", "pytorch"],
+      "Data Science": ["data scientist", "data science", "statistical", "statistics", "r programming", "jupyter"],
+      "Product Management": ["product manager", "product management", "roadmap", "user stories", "prd", "product strategy"],
+      "Design": ["ux design", "ui design", "product design", "figma", "sketch", "user experience", "user interface", "interaction design"],
+      "DevOps": ["devops", "ci/cd", "kubernetes", "docker", "terraform", "infrastructure as code", "jenkins", "github actions"],
+      "Security": ["security", "penetration test", "vulnerability", "cybersecurity", "infosec", "soc ", "siem"],
+      "Mobile Development": ["ios", "android", "react native", "swift", "kotlin", "mobile app", "flutter"],
+      "Frontend": ["react", "vue", "angular", "javascript", "typescript", "css", "html", "next.js", "frontend"],
+      "Backend": ["node.js", "python", "java", "golang", "api design", "microservices", "rest api", "graphql", "backend"],
+      "Cloud Infrastructure": ["aws", "azure", "gcp", "cloud", "ec2", "s3", "lambda", "serverless"],
+      "Data Engineering": ["data pipeline", "etl", "data warehouse", "spark", "airflow", "kafka", "data engineer"],
+      "Analytics": ["analytics", "tableau", "power bi", "looker", "sql", "business intelligence", "dashboards"],
+    };
+    const areas = [];
+    const lowerText = text.toLowerCase();
+    for (const [area, keywords] of Object.entries(AREA_KEYWORDS)) {
+      if (keywords.some(kw => lowerText.includes(kw))) areas.push(area);
+      if (areas.length >= 4) break;
+    }
+
+    console.log(`[extract-resume-info] Fallback extracted: role="${role}", company="${company}", years="${years}", areas=[${areas}]`);
+    res.json({ role, company, years, areas, fallback: true });
   }
 });
 
@@ -681,6 +767,130 @@ app.post("/api/admin/import", checkAdmin, express.json({ limit: "50mb" }), (req,
   nextId = importedNextId;
   saveDB();
   res.json({ ok: true, users: db.users.length, reviewers: db.reviewers.length, candidates: db.candidates.length });
+});
+
+// ─── Admin dashboard & match management ─────────────────────────────────────
+app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
+  const stats = {
+    users: db.users.length,
+    reviewers: db.reviewers.length,
+    candidates: db.candidates.length,
+    matches: db.matches.length,
+    pending: db.matches.filter(m => m.status === "pending").length,
+    done: db.matches.filter(m => m.status === "done").length,
+    waitlisted: db.matches.filter(m => m.status === "waitlist").length,
+    feedback: db.feedback.length,
+  };
+
+  const reviewers = db.reviewers.map(r => {
+    const user = db.users.find(u => u.reviewer_id === r.id);
+    return {
+      ...r, resumeText: undefined,
+      email: user?.email,
+      pendingCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "pending").length,
+      doneCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "done").length,
+    };
+  });
+
+  const candidates = db.candidates.map(c => {
+    const match = db.matches.find(m => m.candidate_id === c.id && m.status !== "waitlist") ||
+                  db.matches.find(m => m.candidate_id === c.id);
+    const reviewer = match?.reviewer_id ? db.reviewers.find(r => r.id === match.reviewer_id) : null;
+    return {
+      id: c.id, name: c.name, email: c.email, targetRole: c.targetRole, targetArea: c.targetArea,
+      created_at: c.created_at,
+      matchStatus: match?.status || "unmatched",
+      reviewerName: reviewer?.name || null,
+    };
+  });
+
+  const matches = db.matches.map(m => {
+    const reviewer = m.reviewer_id ? db.reviewers.find(r => r.id === m.reviewer_id) : null;
+    const candidate = db.candidates.find(c => c.id === m.candidate_id);
+    const feedback = db.feedback.find(f => f.match_id === m.id);
+    return {
+      id: m.id, status: m.status, rationale: m.rationale, created_at: m.created_at,
+      reviewer: reviewer ? { id: reviewer.id, name: reviewer.name, role: reviewer.role, company: reviewer.company, areas: reviewer.areas } : null,
+      candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea } : null,
+      hasFeedback: !!feedback,
+      feedbackRating: feedback?.candidateRating || null,
+    };
+  });
+
+  res.json({ stats, reviewers, candidates, matches });
+});
+
+app.post("/api/admin/matches/:id/reassign", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const { reviewer_id } = req.body;
+  const match = findById("matches", matchId);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  const reviewer = findById("reviewers", reviewer_id);
+  if (!reviewer) return res.status(400).json({ error: "Reviewer not found" });
+  // Self-match check
+  const reviewerUser = db.users.find(u => u.reviewer_id === reviewer_id);
+  const candidateUser = db.users.find(u => (u.candidate_ids || []).includes(match.candidate_id));
+  if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) {
+    return res.status(400).json({ error: "Cannot match a reviewer with their own candidate submission" });
+  }
+  match.reviewer_id = reviewer_id;
+  if (match.status === "waitlist") match.status = "pending";
+  match.rationale = "Manually assigned by admin";
+  saveDB();
+  const candidate = findById("candidates", match.candidate_id);
+  res.json({ match: { ...match, reviewer: { id: reviewer.id, name: reviewer.name, role: reviewer.role }, candidate: { id: candidate?.id, name: candidate?.name, targetRole: candidate?.targetRole } } });
+});
+
+app.post("/api/admin/matches/:id/unassign", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const match = findById("matches", matchId);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  if (match.status === "done") return res.status(400).json({ error: "Cannot unassign a completed review" });
+  match.reviewer_id = null;
+  match.status = "waitlist";
+  match.rationale = "";
+  saveDB();
+  res.json({ match });
+});
+
+app.post("/api/admin/matches/force", checkAdmin, (req, res) => {
+  const { reviewer_id, candidate_id } = req.body;
+  const reviewer = findById("reviewers", reviewer_id);
+  const candidate = findById("candidates", candidate_id);
+  if (!reviewer) return res.status(400).json({ error: "Reviewer not found" });
+  if (!candidate) return res.status(400).json({ error: "Candidate not found" });
+  // Self-match check
+  const reviewerUser = db.users.find(u => u.reviewer_id === reviewer_id);
+  const candidateUser = db.users.find(u => (u.candidate_ids || []).includes(candidate_id));
+  if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) {
+    return res.status(400).json({ error: "Cannot match a reviewer with their own candidate submission" });
+  }
+  // Check for existing waitlist entry to convert
+  const existing = db.matches.find(m => m.candidate_id === candidate_id && m.status === "waitlist");
+  if (existing) {
+    existing.reviewer_id = reviewer_id;
+    existing.status = "pending";
+    existing.rationale = "Manually assigned by admin";
+    saveDB();
+    return res.json({ match: existing });
+  }
+  // Check duplicate
+  const dupe = db.matches.find(m => m.reviewer_id === reviewer_id && m.candidate_id === candidate_id && m.status !== "waitlist");
+  if (dupe) return res.status(409).json({ error: "Match already exists between this reviewer and candidate" });
+  const match = insert("matches", { reviewer_id, candidate_id, status: "pending", rationale: "Manually assigned by admin" });
+  saveDB();
+  res.json({ match });
+});
+
+app.delete("/api/admin/matches/:id", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const idx = db.matches.findIndex(m => m.id === matchId);
+  if (idx === -1) return res.status(404).json({ error: "Match not found" });
+  // Also remove associated feedback
+  db.feedback = db.feedback.filter(f => f.match_id !== matchId);
+  db.matches.splice(idx, 1);
+  saveDB();
+  res.json({ ok: true });
 });
 
 // Serve React frontend in production
