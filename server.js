@@ -234,11 +234,14 @@ app.get("/api/reviewers/:id", requireAuth, (req, res) => {
       // Never show a candidate whose user account is the same person as the reviewer
       const candidateUser = candidate ? db.users.find(u => u.candidate_ids?.includes(candidate.id)) : null;
       if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) return null;
-      // Strip resume from candidate summary — reviewer only needs name + targetRole for the card
-      // Full resume is only sent in InlineReview (separate fetch)
-      // Generate a descriptive anonymous label like "Software Eng. professional → Director"
-      const anonName = candidate ? `${candidate.targetArea} professional targeting ${candidate.targetRole}` : "Anonymous Candidate";
-      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: anonName, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
+      // Strip resume from candidate summary — reviewer only needs role info for the card
+      // Format: "Exec mundu → Chief mundu" or just "Targeting Chief mundu" if no current role
+      const anonName = candidate
+        ? (candidate.currentRole
+            ? `${candidate.currentRole} → ${candidate.targetRole}`
+            : `Targeting ${candidate.targetRole}`)
+        : "Anonymous Candidate";
+      return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: anonName, currentRole: candidate.currentRole, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
     })
     .filter(Boolean);
   res.json({ reviewer, matches });
@@ -280,7 +283,7 @@ function redactPII(text, candidateName) {
 
 // ─── Candidate routes ─────────────────────────────────────────────────────────
 app.post("/api/candidates", requireAuth, async (req, res) => {
-  const { name, email, targetRole, targetArea, resume, fileBase64, fileType, fileName } = req.body;
+  const { name, email, currentRole, targetRole, targetArea, resume, fileBase64, fileType, fileName } = req.body;
   if (!name || !email || !targetRole || !targetArea || !resume)
     return res.status(400).json({ error: "Missing required fields" });
 
@@ -289,7 +292,7 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
 
   // Always create a new candidate submission (one user can have multiple)
   const { label } = req.body; // optional user-override label
-  const candidateData = { name, email, targetRole, targetArea, resume: cleanResume, label: label || "" };
+  const candidateData = { name, email, currentRole: currentRole || "", targetRole, targetArea, resume: cleanResume, label: label || "" };
   if (fileBase64) { candidateData.fileBase64 = fileBase64; candidateData.fileType = fileType || "application/pdf"; candidateData.fileName = fileName || "resume.pdf"; }
   const candidate = insert("candidates", candidateData);
   if (!req.user.candidate_ids) req.user.candidate_ids = [];
@@ -799,7 +802,7 @@ app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
                   db.matches.find(m => m.candidate_id === c.id);
     const reviewer = match?.reviewer_id ? db.reviewers.find(r => r.id === match.reviewer_id) : null;
     return {
-      id: c.id, name: c.name, email: c.email, targetRole: c.targetRole, targetArea: c.targetArea,
+      id: c.id, name: c.name, email: c.email, currentRole: c.currentRole, targetRole: c.targetRole, targetArea: c.targetArea,
       created_at: c.created_at,
       matchStatus: match?.status || "unmatched",
       reviewerName: reviewer?.name || null,
@@ -813,7 +816,7 @@ app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
     return {
       id: m.id, status: m.status, rationale: m.rationale, created_at: m.created_at,
       reviewer: reviewer ? { id: reviewer.id, name: reviewer.name, role: reviewer.role, company: reviewer.company, areas: reviewer.areas } : null,
-      candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea } : null,
+      candidate: candidate ? { id: candidate.id, name: candidate.name, currentRole: candidate.currentRole, targetRole: candidate.targetRole, targetArea: candidate.targetArea } : null,
       hasFeedback: !!feedback,
       feedbackRating: feedback?.candidateRating || null,
     };
@@ -840,7 +843,7 @@ app.post("/api/admin/matches/:id/reassign", checkAdmin, (req, res) => {
   match.rationale = "Manually assigned by admin";
   saveDB();
   const candidate = findById("candidates", match.candidate_id);
-  res.json({ match: { ...match, reviewer: { id: reviewer.id, name: reviewer.name, role: reviewer.role }, candidate: { id: candidate?.id, name: candidate?.name, targetRole: candidate?.targetRole } } });
+  res.json({ match: { ...match, reviewer: { id: reviewer.id, name: reviewer.name, role: reviewer.role }, candidate: { id: candidate?.id, name: candidate?.name, currentRole: candidate?.currentRole, targetRole: candidate?.targetRole } } });
 });
 
 app.post("/api/admin/matches/:id/unassign", checkAdmin, (req, res) => {
