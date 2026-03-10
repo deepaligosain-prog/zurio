@@ -723,7 +723,7 @@ function CandidateSignup({ user, onDone }) {
         const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
         setForm(f => ({
           ...f,
-          targetRole: f.targetRole || info.role || "",
+          // Only auto-fill area — info.role is the CURRENT role from resume, not the target role
           targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
         }));
       } catch(e) { /* silently skip auto-fill on error */ }
