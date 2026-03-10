@@ -347,7 +347,7 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
 Each object in the array must have:
 - reviewer_id (number)
 - score (1–10, integer)
-- reasoning (one sentence, max 20 words, explaining why this reviewer fits this candidate)
+- reasoning (2-3 sentences explaining WHY this reviewer is a good fit. Be specific: mention the reviewer's relevant experience, roles, companies, or skills that make them qualified to review this candidate's resume. Example: "Has 12 years in product management including VP-level roles at tech companies. Has directly hired for the type of role this candidate is targeting and can speak to what stands out.")
 
 Score based on:
 1. Overlap between reviewer's career path / expertise and candidate's target role
@@ -387,7 +387,7 @@ ${reviewerSummaries}`;
         bestReviewer = findById("reviewers", best.reviewer_id);
         if (bestReviewer) {
           // Use Claude's specific reasoning for this reviewer-candidate pair
-          rationale = best.reasoning || `${bestReviewer.name}'s expertise in ${bestReviewer.areas?.[0] || targetArea} is well-suited for ${targetRole}.`;
+          rationale = best.reasoning || `${bestReviewer.name} is a ${bestReviewer.role || "professional"} ${bestReviewer.years ? `with ${bestReviewer.years}+ years` : ""} in ${bestReviewer.areas?.[0] || targetArea}. Their background is well-suited to review a ${targetRole} resume.`;
         }
       }
       // If no reviewer clears the bar, bestReviewer stays null → falls through to waitlist below
@@ -395,7 +395,11 @@ ${reviewerSummaries}`;
   } catch (e) {
     // Fallback to simple area match if Claude fails
     bestReviewer = eligibleReviewers.find(r => r.areas?.includes(targetArea)) || eligibleReviewers[0] || null;
-    rationale = bestReviewer ? `${bestReviewer.name}'s background in ${bestReviewer.areas?.[0]} aligns with ${targetRole}.` : "";
+    if (bestReviewer) {
+      const matchedArea = bestReviewer.areas?.find(a => a === targetArea) || bestReviewer.areas?.[0] || targetArea;
+      const seniorityNote = bestReviewer.years ? `with ${bestReviewer.years}+ years of experience` : "";
+      rationale = `${bestReviewer.name} is a ${bestReviewer.role || "professional"} ${seniorityNote} in ${matchedArea}. Their background reviewing and hiring for similar roles can provide relevant perspective on this ${targetRole} resume.`;
+    }
   }
 
   if (!bestReviewer) {
@@ -514,14 +518,15 @@ async function drainWaitlist(freedReviewerId) {
         (candidate.targetArea || "").toLowerCase().includes(a.toLowerCase())
       );
       score = areaMatch ? 6 : 5; // area match gets 6, otherwise still meets minimum
+      const matchedArea = areaMatch ? (reviewer.areas.find(a => a.toLowerCase().includes(candidate.targetArea?.toLowerCase() || "")) || reviewer.areas[0]) : reviewer.areas?.[0];
       reasoning = areaMatch
-        ? `${reviewer.name}'s expertise in ${reviewer.areas.find(a => a.toLowerCase().includes(candidate.targetArea?.toLowerCase() || "")) || reviewer.areas[0]} aligns with ${candidate.targetRole}.`
-        : `${reviewer.name} has available capacity to review this ${candidate.targetRole} resume.`;
+        ? `${reviewer.name} is a ${reviewer.role || "professional"} ${reviewer.years ? `with ${reviewer.years}+ years` : ""} in ${matchedArea}. Their experience can provide relevant perspective for someone targeting ${candidate.targetRole}.`
+        : `${reviewer.name} is a ${reviewer.role || "professional"} ${reviewer.years ? `with ${reviewer.years}+ years of experience` : ""}. They have capacity to review and can offer a senior perspective on this ${candidate.targetRole} resume.`;
     }
     if (score >= MIN_MATCH_SCORE) {
       wm.reviewer_id = freedReviewerId;
       wm.status = "pending";
-      wm.rationale = reasoning || `${reviewer.name}'s expertise in ${reviewer.areas[0]} aligns with ${candidate.targetRole}.`;
+      wm.rationale = reasoning || `${reviewer.name} has experience in ${reviewer.areas?.[0] || "this field"} and can provide relevant feedback for a ${candidate.targetRole} resume.`;
       saveDB();
       filled++;
       if (reviewerUser?.email) {
