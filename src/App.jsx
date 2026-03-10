@@ -651,6 +651,23 @@ function CandidateSignup({ user, onDone }) {
 
   const [fileData, setFileData] = useState(null); // { base64, type, name }
   const [extracting, setExtracting] = useState(false);
+  const extractedRef = useRef(""); // track which text we already extracted from
+
+  const extractFromResume = async (text) => {
+    if (!text || text.trim().length < 80) return;
+    if (extractedRef.current === text) return; // already extracted from this text
+    extractedRef.current = text;
+    setExtracting(true);
+    try {
+      const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
+      setForm(f => ({
+        ...f,
+        currentRole: f.currentRole || info.role || "",
+        targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+      }));
+    } catch(e) { /* silently skip auto-fill on error */ }
+    setExtracting(false);
+  };
 
   const readFile = async (file) => {
     if (!file) return;
@@ -663,17 +680,7 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      // Auto-fill target role and area from resume
-      setExtracting(true);
-      try {
-        const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
-        setForm(f => ({
-          ...f,
-          currentRole: f.currentRole || info.role || "",
-          targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
-        }));
-      } catch(e) { /* silently skip auto-fill on error */ }
-      setExtracting(false);
+      extractFromResume(text);
       // Also read file as base64 for storage
       const reader = new FileReader();
       reader.onload = () => {
@@ -778,7 +785,7 @@ function CandidateSignup({ user, onDone }) {
             )}
           </div>
         ) : (
-          <textarea rows={11} value={form.resume} onChange={e=>setForm(f=>({...f,resume:e.target.value}))} placeholder="Paste your resume text here..." style={{width:"100%",background:"white",border:"1.5px solid var(--border)",borderRadius:10,padding:"12px 14px",fontSize:15,fontFamily:"'Instrument Sans',sans-serif",color:"var(--ink)",outline:"none",resize:"none",lineHeight:1.55}} />
+          <textarea rows={11} value={form.resume} onChange={e=>setForm(f=>({...f,resume:e.target.value}))} onBlur={()=>extractFromResume(form.resume)} placeholder="Paste your resume text here..." style={{width:"100%",background:"white",border:"1.5px solid var(--border)",borderRadius:10,padding:"12px 14px",fontSize:15,fontFamily:"'Instrument Sans',sans-serif",color:"var(--ink)",outline:"none",resize:"none",lineHeight:1.55}} />
         )}
       </div>
 
