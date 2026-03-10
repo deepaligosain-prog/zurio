@@ -99,7 +99,8 @@ const style = `
   .compare-col.zurio .compare-col-title { color: var(--amber); }
   .compare-item { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; font-size: 13px; line-height: 1.45; color: var(--ink-light); }
   .compare-item:last-child { margin-bottom: 0; }
-  .compare-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .compare-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; color: var(--ink-muted); }
+  .compare-col.zurio .compare-icon { color: var(--amber); }
   .compare-col.zurio .compare-item { color: var(--ink); }
   @media (max-width: 640px) { .compare-compact { grid-template-columns: 1fr; } }
   .marketing-right { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 24px; box-shadow: var(--shadow); }
@@ -404,15 +405,15 @@ function LoginPage({ onLogin }) {
           <div className="compare-compact">
             <div className="compare-col generic">
               <div className="compare-col-title">Generic services</div>
-              <div className="compare-item"><span className="compare-icon">❌</span><span>Automated templates for anyone</span></div>
-              <div className="compare-item"><span className="compare-icon">❌</span><span>Vague advice, upselling rewrites</span></div>
-              <div className="compare-item"><span className="compare-icon">❌</span><span>Reviewer outside your field</span></div>
+              <div className="compare-item"><span className="compare-icon">•</span><span>Automated templates for anyone</span></div>
+              <div className="compare-item"><span className="compare-icon">•</span><span>Vague advice, upselling rewrites</span></div>
+              <div className="compare-item"><span className="compare-icon">•</span><span>Reviewer outside your field</span></div>
             </div>
             <div className="compare-col zurio">
               <div className="compare-col-title">Zurio</div>
-              <div className="compare-item"><span className="compare-icon">✅</span><span>Matched with a real professional</span></div>
-              <div className="compare-item"><span className="compare-icon">✅</span><span>Specific, honest feedback — free</span></div>
-              <div className="compare-item"><span className="compare-icon">✅</span><span>Someone who's been in your shoes</span></div>
+              <div className="compare-item"><span className="compare-icon">✦</span><span>Matched with a real professional</span></div>
+              <div className="compare-item"><span className="compare-icon">✦</span><span>Specific, honest feedback — free</span></div>
+              <div className="compare-item"><span className="compare-icon">✦</span><span>Someone who's been in your shoes</span></div>
             </div>
           </div>
         </div>
