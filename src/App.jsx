@@ -368,12 +368,10 @@ function LoginPage({ onLogin }) {
 
   return (
     <div className="marketing-page">
-      {/* ── Top nav with sign-in ── */}
+      {/* ── Top nav ── */}
       <nav className="marketing-nav">
         <div className="marketing-nav-logo">Zurio</div>
-        <button className="marketing-nav-signin" onClick={() => { setMode("login"); formRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
-          Sign In
-        </button>
+        <span className="mono" style={{fontSize:10,color:"var(--ink-muted)",letterSpacing:"0.12em"}}>BETA</span>
       </nav>
 
       {/* ── Two-column: pitch left, form right ── */}
@@ -834,7 +832,7 @@ function MatchCard({ match, onRefresh }) {
           <div className="name-block"><strong>{match.reviewer?.name}</strong><span>{match.reviewer?.role} · {match.reviewer?.company}</span></div>
           <span className="match-arrow">→</span>
           <div className="avatar blue-bg">{match.candidate?.name?.[0]}</div>
-          <div className="name-block"><strong>{match.candidate?.name}</strong><span>Targeting: {match.candidate?.targetRole}</span></div>
+          <div className="name-block"><strong>{match.candidate?.name}</strong><span>{match.candidate?.targetArea}</span></div>
         </div>
         <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Reviewed":"● Awaiting Review"}</span>
       </div>
@@ -926,10 +924,10 @@ function InlineReview({ match, onBack, onDone }) {
 
   return (
     <div className="review-page" style={{padding:"0 0 40px"}}>
-      <button className="back-btn" onClick={onBack} style={{marginBottom:20}}>← Back</button>
+      <button className="back-btn" onClick={onBack} style={{marginBottom:20}}>← Back to Dashboard</button>
       <div className="form-eyebrow amber">Reviewing resume</div>
       <h1 className="form-heading" style={{fontSize:28}}>{match.candidate?.name}</h1>
-      <p style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>Targeting: <strong style={{color:"var(--ink)"}}>{match.candidate?.targetRole}</strong></p>
+      <p style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{match.candidate?.targetArea}</p>
       <div className="two-col">
         <div className="panel">
           <div className="panel-header">
@@ -1050,7 +1048,7 @@ function SubmissionCard({ submission }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:8}}>
         <div>
           <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:400}}>{label}</div>
-          <div style={{fontSize:13,color:"var(--ink-muted)",marginTop:3}}>Targeting: {candidate.targetRole} · {candidate.targetArea}</div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginTop:3}}>{candidate.currentRole ? `${candidate.currentRole} → ` : ""}{candidate.targetRole} · {candidate.targetArea}</div>
         </div>
         {match ? (
           <span className={`badge ${match.status==="done"?"green":match.status==="waitlist"?"":"amber"}`}>
