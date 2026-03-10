@@ -235,11 +235,11 @@ app.get("/api/reviewers/:id", requireAuth, (req, res) => {
       const candidateUser = candidate ? db.users.find(u => u.candidate_ids?.includes(candidate.id)) : null;
       if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) return null;
       // Strip resume from candidate summary — reviewer only needs role info for the card
-      // Format: "Exec mundu → Chief mundu" or just "Targeting Chief mundu" if no current role
+      // Format: "Exec mundu → Chief mundu" or just "Chief mundu" if no current role
       const anonName = candidate
         ? (candidate.currentRole
             ? `${candidate.currentRole} → ${candidate.targetRole}`
-            : `Targeting ${candidate.targetRole}`)
+            : candidate.targetRole)
         : "Anonymous Candidate";
       return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: anonName, currentRole: candidate.currentRole, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
     })
