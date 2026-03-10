@@ -368,12 +368,10 @@ function LoginPage({ onLogin }) {
 
   return (
     <div className="marketing-page">
-      {/* ── Top nav with sign-in ── */}
+      {/* ── Top nav ── */}
       <nav className="marketing-nav">
         <div className="marketing-nav-logo">Zurio</div>
-        <button className="marketing-nav-signin" onClick={() => { setMode("login"); formRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
-          Sign In
-        </button>
+        <span className="mono" style={{fontSize:10,color:"var(--ink-muted)",letterSpacing:"0.12em"}}>BETA</span>
       </nav>
 
       {/* ── Two-column: pitch left, form right ── */}
