@@ -769,6 +769,130 @@ app.post("/api/admin/import", checkAdmin, express.json({ limit: "50mb" }), (req,
   res.json({ ok: true, users: db.users.length, reviewers: db.reviewers.length, candidates: db.candidates.length });
 });
 
+// ─── Admin dashboard & match management ─────────────────────────────────────
+app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
+  const stats = {
+    users: db.users.length,
+    reviewers: db.reviewers.length,
+    candidates: db.candidates.length,
+    matches: db.matches.length,
+    pending: db.matches.filter(m => m.status === "pending").length,
+    done: db.matches.filter(m => m.status === "done").length,
+    waitlisted: db.matches.filter(m => m.status === "waitlist").length,
+    feedback: db.feedback.length,
+  };
+
+  const reviewers = db.reviewers.map(r => {
+    const user = db.users.find(u => u.reviewer_id === r.id);
+    return {
+      ...r, resumeText: undefined,
+      email: user?.email,
+      pendingCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "pending").length,
+      doneCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "done").length,
+    };
+  });
+
+  const candidates = db.candidates.map(c => {
+    const match = db.matches.find(m => m.candidate_id === c.id && m.status !== "waitlist") ||
+                  db.matches.find(m => m.candidate_id === c.id);
+    const reviewer = match?.reviewer_id ? db.reviewers.find(r => r.id === match.reviewer_id) : null;
+    return {
+      id: c.id, name: c.name, email: c.email, targetRole: c.targetRole, targetArea: c.targetArea,
+      created_at: c.created_at,
+      matchStatus: match?.status || "unmatched",
+      reviewerName: reviewer?.name || null,
+    };
+  });
+
+  const matches = db.matches.map(m => {
+    const reviewer = m.reviewer_id ? db.reviewers.find(r => r.id === m.reviewer_id) : null;
+    const candidate = db.candidates.find(c => c.id === m.candidate_id);
+    const feedback = db.feedback.find(f => f.match_id === m.id);
+    return {
+      id: m.id, status: m.status, rationale: m.rationale, created_at: m.created_at,
+      reviewer: reviewer ? { id: reviewer.id, name: reviewer.name, role: reviewer.role, company: reviewer.company, areas: reviewer.areas } : null,
+      candidate: candidate ? { id: candidate.id, name: candidate.name, targetRole: candidate.targetRole, targetArea: candidate.targetArea } : null,
+      hasFeedback: !!feedback,
+      feedbackRating: feedback?.candidateRating || null,
+    };
+  });
+
+  res.json({ stats, reviewers, candidates, matches });
+});
+
+app.post("/api/admin/matches/:id/reassign", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const { reviewer_id } = req.body;
+  const match = findById("matches", matchId);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  const reviewer = findById("reviewers", reviewer_id);
+  if (!reviewer) return res.status(400).json({ error: "Reviewer not found" });
+  // Self-match check
+  const reviewerUser = db.users.find(u => u.reviewer_id === reviewer_id);
+  const candidateUser = db.users.find(u => (u.candidate_ids || []).includes(match.candidate_id));
+  if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) {
+    return res.status(400).json({ error: "Cannot match a reviewer with their own candidate submission" });
+  }
+  match.reviewer_id = reviewer_id;
+  if (match.status === "waitlist") match.status = "pending";
+  match.rationale = "Manually assigned by admin";
+  saveDB();
+  const candidate = findById("candidates", match.candidate_id);
+  res.json({ match: { ...match, reviewer: { id: reviewer.id, name: reviewer.name, role: reviewer.role }, candidate: { id: candidate?.id, name: candidate?.name, targetRole: candidate?.targetRole } } });
+});
+
+app.post("/api/admin/matches/:id/unassign", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const match = findById("matches", matchId);
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  if (match.status === "done") return res.status(400).json({ error: "Cannot unassign a completed review" });
+  match.reviewer_id = null;
+  match.status = "waitlist";
+  match.rationale = "";
+  saveDB();
+  res.json({ match });
+});
+
+app.post("/api/admin/matches/force", checkAdmin, (req, res) => {
+  const { reviewer_id, candidate_id } = req.body;
+  const reviewer = findById("reviewers", reviewer_id);
+  const candidate = findById("candidates", candidate_id);
+  if (!reviewer) return res.status(400).json({ error: "Reviewer not found" });
+  if (!candidate) return res.status(400).json({ error: "Candidate not found" });
+  // Self-match check
+  const reviewerUser = db.users.find(u => u.reviewer_id === reviewer_id);
+  const candidateUser = db.users.find(u => (u.candidate_ids || []).includes(candidate_id));
+  if (reviewerUser && candidateUser && reviewerUser.id === candidateUser.id) {
+    return res.status(400).json({ error: "Cannot match a reviewer with their own candidate submission" });
+  }
+  // Check for existing waitlist entry to convert
+  const existing = db.matches.find(m => m.candidate_id === candidate_id && m.status === "waitlist");
+  if (existing) {
+    existing.reviewer_id = reviewer_id;
+    existing.status = "pending";
+    existing.rationale = "Manually assigned by admin";
+    saveDB();
+    return res.json({ match: existing });
+  }
+  // Check duplicate
+  const dupe = db.matches.find(m => m.reviewer_id === reviewer_id && m.candidate_id === candidate_id && m.status !== "waitlist");
+  if (dupe) return res.status(409).json({ error: "Match already exists between this reviewer and candidate" });
+  const match = insert("matches", { reviewer_id, candidate_id, status: "pending", rationale: "Manually assigned by admin" });
+  saveDB();
+  res.json({ match });
+});
+
+app.delete("/api/admin/matches/:id", checkAdmin, (req, res) => {
+  const matchId = parseInt(req.params.id);
+  const idx = db.matches.findIndex(m => m.id === matchId);
+  if (idx === -1) return res.status(404).json({ error: "Match not found" });
+  // Also remove associated feedback
+  db.feedback = db.feedback.filter(f => f.match_id !== matchId);
+  db.matches.splice(idx, 1);
+  saveDB();
+  res.json({ ok: true });
+});
+
 // Serve React frontend in production
 const distPath = path.join(__dirname, "dist");
 console.log("distPath:", distPath, "exists:", fs.existsSync(distPath));

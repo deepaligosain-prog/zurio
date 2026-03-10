@@ -200,6 +200,33 @@ const style = `
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   .feedback-body { font-size: 15px; color: var(--ink-light); line-height: 1.8; white-space: pre-wrap; }
   .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* Admin dashboard */
+  .admin-page { max-width: 1060px; margin: 0 auto; padding: 48px 24px 80px; }
+  .admin-tabs { display: flex; gap: 4px; background: var(--cream); border-radius: 10px; padding: 3px; margin-bottom: 28px; }
+  .admin-tab { flex: 1; padding: 9px 0; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; background: transparent; color: var(--ink-muted); transition: all 0.18s; }
+  .admin-tab.active { background: white; color: #DC2626; box-shadow: var(--shadow); }
+  .admin-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .admin-stat { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 18px 16px; text-align: center; }
+  .admin-stat .num { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; color: var(--ink); }
+  .admin-stat .label { font-family: 'DM Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-muted); margin-top: 4px; }
+  .admin-filter { display: flex; gap: 10px; margin-bottom: 18px; align-items: center; flex-wrap: wrap; }
+  .admin-filter input { flex: 1; min-width: 180px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; background: white; }
+  .admin-filter input:focus { border-color: #DC2626; }
+  .admin-filter-btn { padding: 7px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: white; font-size: 12px; cursor: pointer; font-weight: 500; color: var(--ink-muted); transition: all 0.15s; }
+  .admin-filter-btn.active { background: #FEE2E2; border-color: #DC2626; color: #DC2626; }
+  .admin-match { background: white; border: 1.5px solid var(--border); border-radius: 14px; padding: 18px 20px; margin-bottom: 12px; }
+  .admin-match:hover { border-color: #DC2626; }
+  .admin-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .admin-actions button { font-size: 12px; padding: 6px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: white; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+  .admin-actions button:hover { border-color: #DC2626; color: #DC2626; }
+  .admin-actions button.danger { color: #DC2626; }
+  .admin-actions button.danger:hover { background: #FEE2E2; }
+  .admin-select { padding: 7px 12px; border-radius: 8px; border: 1.5px solid #DC2626; font-size: 13px; outline: none; min-width: 200px; }
+  .badge.red { background: #FEE2E2; color: #DC2626; }
+  .admin-login { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 16px; }
+  .admin-login h1 { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; }
+  .admin-person { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 `;
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -216,6 +243,21 @@ async function api(method, path, body) {
     method,
     credentials: "include",
     headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function adminApi(method, path, body) {
+  const secret = sessionStorage.getItem("zurio-admin-secret");
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      "x-admin-secret": secret || "",
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json();
@@ -1017,13 +1059,271 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
   );
 }
 
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
+function AdminLogin({ onAuth }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const submit = async () => {
+    setLoading(true); setErr("");
+    try {
+      sessionStorage.setItem("zurio-admin-secret", pw);
+      await adminApi("GET", "/api/admin/dashboard");
+      onAuth();
+    } catch(e) {
+      sessionStorage.removeItem("zurio-admin-secret");
+      setErr("Invalid admin password.");
+    }
+    setLoading(false);
+  };
+  return (
+    <div className="admin-login">
+      <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.14em",color:"#DC2626"}}>Admin</div>
+      <h1>Zurio Admin</h1>
+      {err && <div className="error-banner" style={{maxWidth:340,width:"100%"}}>{err}</div>}
+      <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}
+        placeholder="Admin password" style={{maxWidth:340,width:"100%",padding:"12px 16px",borderRadius:10,border:"1.5px solid var(--border)",fontSize:15,outline:"none"}} />
+      <button className="action-btn" style={{background:"#DC2626",color:"white",border:"none",maxWidth:340,width:"100%",padding:"12px",fontSize:14,borderRadius:10,cursor:"pointer"}}
+        onClick={submit} disabled={loading}>{loading ? "Verifying..." : "Sign In →"}</button>
+    </div>
+  );
+}
+
+function AdminDashboard() {
+  const [tab, setTab] = useState("overview");
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const load = () => adminApi("GET", "/api/admin/dashboard").then(setData).catch(e=>setError(e.message));
+  useEffect(() => { load(); }, []);
+
+  if (error) return <div className="admin-page"><div className="error-banner">{error}</div></div>;
+  if (!data) return <div className="admin-page" style={{textAlign:"center",paddingTop:100}}><span className="spinner dark" style={{width:24,height:24}}/></div>;
+
+  const { stats, reviewers, candidates, matches } = data;
+
+  // Filter matches
+  const filtered = matches.filter(m => {
+    if (statusFilter !== "all" && m.status !== statusFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (m.reviewer?.name||"").toLowerCase().includes(q) ||
+             (m.candidate?.name||"").toLowerCase().includes(q) ||
+             (m.candidate?.targetRole||"").toLowerCase().includes(q) ||
+             (m.rationale||"").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  return (
+    <div className="admin-page">
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.14em",color:"#DC2626",marginBottom:6}}>Admin Dashboard</div>
+        <h1 className="dash-title">Zurio Admin</h1>
+      </div>
+
+      <div className="admin-tabs">
+        {["overview","matches","people"].map(t => (
+          <button key={t} className={`admin-tab ${tab===t?"active":""}`} onClick={()=>setTab(t)}>
+            {t==="overview"?"Overview":t==="matches"?"Matches":"People"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── OVERVIEW ── */}
+      {tab === "overview" && (
+        <>
+          <div className="admin-stats">
+            {[
+              { n: stats.users, l: "Users" },
+              { n: stats.reviewers, l: "Reviewers" },
+              { n: stats.candidates, l: "Candidates" },
+              { n: stats.pending, l: "Pending" },
+              { n: stats.done, l: "Completed" },
+              { n: stats.waitlisted, l: "Waitlisted" },
+              { n: stats.feedback, l: "Feedback" },
+            ].map((s,i) => (
+              <div key={i} className="admin-stat">
+                <div className="num">{s.n}</div>
+                <div className="label">{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <div className="section-label" style={{marginBottom:14}}>Recent matches</div>
+          {matches.slice(-10).reverse().map(m => (
+            <div key={m.id} className="admin-match" style={{padding:"12px 16px",marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:14}}>
+                  <strong>{m.reviewer?.name || "—"}</strong>
+                  <span style={{color:"var(--ink-muted)",margin:"0 6px"}}>→</span>
+                  <strong>{m.candidate?.name || "?"}</strong>
+                  <span style={{color:"var(--ink-muted)",fontSize:12,marginLeft:8}}>{m.candidate?.targetRole}</span>
+                </div>
+                <span className={`badge ${m.status==="done"?"green":m.status==="pending"?"amber":"red"}`}>
+                  {m.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* ── MATCHES ── */}
+      {tab === "matches" && (
+        <>
+          <div className="admin-filter">
+            <input placeholder="Search by name, role, or rationale..." value={search} onChange={e=>setSearch(e.target.value)} />
+            {["all","pending","done","waitlist"].map(s => (
+              <button key={s} className={`admin-filter-btn ${statusFilter===s?"active":""}`} onClick={()=>setStatusFilter(s)}>
+                {s === "all" ? `All (${matches.length})` : `${s} (${matches.filter(m=>m.status===s).length})`}
+              </button>
+            ))}
+          </div>
+          {filtered.length === 0 && <div style={{textAlign:"center",color:"var(--ink-muted)",padding:"30px 0"}}>No matches found</div>}
+          {filtered.map(m => (
+            <AdminMatchCard key={m.id} match={m} reviewers={reviewers} onRefresh={load} />
+          ))}
+        </>
+      )}
+
+      {/* ── PEOPLE ── */}
+      {tab === "people" && (
+        <>
+          <div className="section-label" style={{marginBottom:14}}>Reviewers ({reviewers.length})</div>
+          {reviewers.map(r => (
+            <div key={r.id} className="admin-person">
+              <div>
+                <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
+                <div style={{fontSize:13,color:"var(--ink-muted)"}}>{r.role} · {r.company} · {r.years} yrs</div>
+                {r.email && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:2}}>{r.email}</div>}
+                <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
+                  {(r.areas||[]).map(a => <span key={a} className="badge" style={{fontSize:10}}>{a}</span>)}
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:13}}><span style={{color:"var(--amber)"}}>{r.pendingCount} pending</span> · <span style={{color:"var(--green)"}}>{r.doneCount} done</span></div>
+              </div>
+            </div>
+          ))}
+
+          <div className="section-label" style={{marginTop:32,marginBottom:14}}>Candidates ({candidates.length})</div>
+          {candidates.map(c => (
+            <div key={c.id} className="admin-person">
+              <div>
+                <div style={{fontWeight:600,fontSize:15}}>{c.name}</div>
+                <div style={{fontSize:13,color:"var(--ink-muted)"}}>→ {c.targetRole} · {c.targetArea}</div>
+                {c.email && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:2}}>{c.email}</div>}
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <span className={`badge ${c.matchStatus==="done"?"green":c.matchStatus==="pending"?"amber":c.matchStatus==="waitlist"?"red":""}`}>
+                  {c.matchStatus}
+                </span>
+                {c.reviewerName && <span style={{fontSize:12,color:"var(--ink-muted)"}}>← {c.reviewerName}</span>}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdminMatchCard({ match: m, reviewers, onRefresh }) {
+  const [reassigning, setReassigning] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const reassign = async (reviewerId) => {
+    setBusy(true);
+    try {
+      await adminApi("POST", `/api/admin/matches/${m.id}/reassign`, { reviewer_id: parseInt(reviewerId) });
+      setReassigning(false);
+      onRefresh();
+    } catch(e) { alert(e.message); }
+    setBusy(false);
+  };
+
+  const unassign = async () => {
+    if (!confirm("Move this match back to waitlist?")) return;
+    setBusy(true);
+    try { await adminApi("POST", `/api/admin/matches/${m.id}/unassign`); onRefresh(); }
+    catch(e) { alert(e.message); }
+    setBusy(false);
+  };
+
+  const del = async () => {
+    if (!confirm("Delete this match permanently? This cannot be undone.")) return;
+    setBusy(true);
+    try { await adminApi("DELETE", `/api/admin/matches/${m.id}`); onRefresh(); }
+    catch(e) { alert(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="admin-match">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span className="badge amber" style={{fontSize:10}}>{m.reviewer?.name || "No reviewer"}</span>
+            <span style={{color:"var(--ink-muted)",fontSize:13}}>→</span>
+            <span className="badge blue" style={{fontSize:10}}>{m.candidate?.name || "?"}</span>
+          </div>
+          <div style={{fontSize:13,color:"var(--ink-muted)"}}>
+            {m.reviewer ? `${m.reviewer.role} at ${m.reviewer.company}` : "Waitlisted"} → {m.candidate?.targetRole} ({m.candidate?.targetArea})
+          </div>
+          {m.rationale && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:4,fontStyle:"italic"}}>"{m.rationale}"</div>}
+        </div>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <span className={`badge ${m.status==="done"?"green":m.status==="pending"?"amber":"red"}`}>{m.status}</span>
+          {m.hasFeedback && <span className="badge green" style={{fontSize:10}}>has feedback</span>}
+          {m.feedbackRating && <span style={{fontSize:12}}>{"★".repeat(m.feedbackRating)}</span>}
+        </div>
+      </div>
+
+      <div className="admin-actions">
+        {reassigning ? (
+          <>
+            <select className="admin-select" autoFocus onChange={e => e.target.value && reassign(e.target.value)} onBlur={()=>setReassigning(false)} disabled={busy}>
+              <option value="">Pick a reviewer...</option>
+              {reviewers.map(r => <option key={r.id} value={r.id}>{r.name} — {r.role} at {r.company} ({r.pendingCount} pending)</option>)}
+            </select>
+            <button onClick={()=>setReassigning(false)}>Cancel</button>
+          </>
+        ) : (
+          <>
+            <button onClick={()=>setReassigning(true)}>{m.status==="waitlist" ? "Assign Reviewer" : "Reassign"}</button>
+            {m.status === "pending" && <button onClick={unassign}>Unassign</button>}
+            <button className="danger" onClick={del} disabled={busy}>Delete</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(undefined); // undefined = loading
   const [view, setView] = useState("loading");
+  const [adminMode, setAdminMode] = useState(false);
 
   // Check session on load
   useEffect(() => {
+    // Admin mode detection
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("admin")) {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Check if already authed from sessionStorage
+      if (sessionStorage.getItem("zurio-admin-secret")) {
+        setAdminMode(true);
+        setView("admin");
+      } else {
+        setAdminMode(true);
+        setView("admin-login");
+      }
+      return;
+    }
     api("GET", "/api/me").then(({ user: u }) => {
       setUser(u);
       routeUser(u);
@@ -1069,7 +1369,17 @@ export default function App() {
   return (
     <>
       <style>{style}</style>
-      <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} onTabSelect={handleTabSelect} currentView={view} />
+      {adminMode ? (
+        <nav className="top-nav">
+          <div className="nav-wordmark">Zurio</div>
+          <span className="badge red" style={{fontSize:11}}>ADMIN MODE</span>
+        </nav>
+      ) : (
+        <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} onTabSelect={handleTabSelect} currentView={view} />
+      )}
+
+      {view === "admin-login" && <AdminLogin onAuth={() => setView("admin")} />}
+      {view === "admin" && <AdminDashboard />}
 
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
 
