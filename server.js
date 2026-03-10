@@ -551,9 +551,95 @@ Return ONLY the JSON object.`;
     const info = JSON.parse(jsonMatch[0]);
     res.json(info);
   } catch (e) {
-    console.error("[extract-resume-info] Error:", e.message);
-    // Return empty defaults so the form still works — user can fill manually
-    res.json({ role: "", company: "", years: "", areas: [], aiUnavailable: true });
+    console.error("[extract-resume-info] AI unavailable, using regex fallback:", e.message);
+    // ── Regex-based fallback extraction ──
+    const text = resumeText.slice(0, 3000);
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+    // Extract role: look for common title patterns in first ~15 lines
+    const TITLES = [
+      "Software Engineer", "Senior Software Engineer", "Staff Engineer", "Principal Engineer",
+      "Engineering Manager", "Director of Engineering", "VP of Engineering", "CTO", "CEO", "COO", "CFO",
+      "Product Manager", "Senior Product Manager", "Group Product Manager", "Director of Product",
+      "Data Scientist", "Senior Data Scientist", "ML Engineer", "Machine Learning Engineer", "AI Engineer",
+      "Designer", "UX Designer", "Product Designer", "Senior Designer", "Design Lead",
+      "Frontend Engineer", "Backend Engineer", "Full Stack Engineer", "Fullstack Engineer", "DevOps Engineer",
+      "QA Engineer", "Test Engineer", "Security Engineer", "Penetration Tester",
+      "Data Analyst", "Business Analyst", "Marketing Manager", "Sales Manager",
+      "Program Manager", "Technical Program Manager", "Scrum Master", "Agile Coach",
+      "Solutions Architect", "Cloud Architect", "System Administrator",
+      "Consultant", "Analyst", "Associate", "Manager", "Director", "Vice President",
+    ];
+    let role = "";
+    const headerLines = lines.slice(0, 15).join(" ");
+    for (const t of TITLES) {
+      if (headerLines.toLowerCase().includes(t.toLowerCase())) { role = t; break; }
+    }
+    // Also try "Title at Company" or "Title, Company" patterns
+    const titleAtMatch = headerLines.match(/(?:^|\n)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Engineer|Manager|Designer|Scientist|Developer|Architect|Analyst|Lead|Director|Consultant))\s+(?:at|@|,)\s+([A-Za-z][A-Za-z0-9 &.]+)/i);
+
+    // Extract company
+    let company = "";
+    if (titleAtMatch) {
+      if (!role) role = titleAtMatch[1].trim();
+      company = titleAtMatch[2].trim();
+    }
+    // Try "Company" from "at Company" or "@ Company" in first lines
+    if (!company) {
+      const atMatch = headerLines.match(/(?:at|@)\s+([A-Z][A-Za-z0-9 &.]{1,30})/);
+      if (atMatch) company = atMatch[1].trim();
+    }
+
+    // Extract years of experience
+    let years = "";
+    const yearsMatch = text.match(/(\d{1,2})\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:experience|exp)/i);
+    if (yearsMatch) {
+      const y = parseInt(yearsMatch[1]);
+      if (y <= 3) years = "1–3";
+      else if (y <= 6) years = "4–6";
+      else if (y <= 10) years = "7–10";
+      else if (y <= 15) years = "10–15";
+      else years = "15+";
+    } else {
+      // Estimate from date ranges (e.g., "2015 - 2023", "2018 – Present")
+      const dateRanges = [...text.matchAll(/\b(20\d{2}|19\d{2})\s*[-–—]\s*(20\d{2}|[Pp]resent|[Cc]urrent)\b/g)];
+      if (dateRanges.length > 0) {
+        const starts = dateRanges.map(m => parseInt(m[1]));
+        const earliest = Math.min(...starts);
+        const totalYears = new Date().getFullYear() - earliest;
+        if (totalYears <= 3) years = "1–3";
+        else if (totalYears <= 6) years = "4–6";
+        else if (totalYears <= 10) years = "7–10";
+        else if (totalYears <= 15) years = "10–15";
+        else years = "15+";
+      }
+    }
+
+    // Extract areas from keyword matching
+    const AREA_KEYWORDS = {
+      "Software Engineering": ["software engineer", "backend", "frontend", "full stack", "fullstack", "developer", "coding", "programming"],
+      "AI/ML": ["machine learning", "deep learning", "artificial intelligence", "ai/ml", "ml engineer", "neural network", "tensorflow", "pytorch"],
+      "Data Science": ["data scientist", "data science", "statistical", "statistics", "r programming", "jupyter"],
+      "Product Management": ["product manager", "product management", "roadmap", "user stories", "prd", "product strategy"],
+      "Design": ["ux design", "ui design", "product design", "figma", "sketch", "user experience", "user interface", "interaction design"],
+      "DevOps": ["devops", "ci/cd", "kubernetes", "docker", "terraform", "infrastructure as code", "jenkins", "github actions"],
+      "Security": ["security", "penetration test", "vulnerability", "cybersecurity", "infosec", "soc ", "siem"],
+      "Mobile Development": ["ios", "android", "react native", "swift", "kotlin", "mobile app", "flutter"],
+      "Frontend": ["react", "vue", "angular", "javascript", "typescript", "css", "html", "next.js", "frontend"],
+      "Backend": ["node.js", "python", "java", "golang", "api design", "microservices", "rest api", "graphql", "backend"],
+      "Cloud Infrastructure": ["aws", "azure", "gcp", "cloud", "ec2", "s3", "lambda", "serverless"],
+      "Data Engineering": ["data pipeline", "etl", "data warehouse", "spark", "airflow", "kafka", "data engineer"],
+      "Analytics": ["analytics", "tableau", "power bi", "looker", "sql", "business intelligence", "dashboards"],
+    };
+    const areas = [];
+    const lowerText = text.toLowerCase();
+    for (const [area, keywords] of Object.entries(AREA_KEYWORDS)) {
+      if (keywords.some(kw => lowerText.includes(kw))) areas.push(area);
+      if (areas.length >= 4) break;
+    }
+
+    console.log(`[extract-resume-info] Fallback extracted: role="${role}", company="${company}", years="${years}", areas=[${areas}]`);
+    res.json({ role, company, years, areas, fallback: true });
   }
 });
 

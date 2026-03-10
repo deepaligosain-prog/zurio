@@ -518,6 +518,7 @@ function CandidateSignup({ user, onDone }) {
   const valid = form.name && form.email && form.targetRole && form.targetArea && form.resume.trim().length > 50;
 
   const [fileData, setFileData] = useState(null); // { base64, type, name }
+  const [extracting, setExtracting] = useState(false);
 
   const readFile = async (file) => {
     if (!file) return;
@@ -530,6 +531,17 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
+      // Auto-fill target role and area from resume
+      setExtracting(true);
+      try {
+        const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
+        setForm(f => ({
+          ...f,
+          targetRole: f.targetRole || info.role || "",
+          targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+        }));
+      } catch(e) { /* silently skip auto-fill on error */ }
+      setExtracting(false);
       // Also read file as base64 for storage
       const reader = new FileReader();
       reader.onload = () => {
@@ -637,7 +649,8 @@ function CandidateSignup({ user, onDone }) {
         )}
       </div>
 
-      <button className="submit-btn blue" onClick={handleSubmit} disabled={!valid||loading}>
+      {extracting && <div style={{textAlign:"center",color:"var(--blue)",fontSize:13,marginBottom:8}}><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Auto-filling from your resume...</div>}
+      <button className="submit-btn blue" onClick={handleSubmit} disabled={!valid||loading||extracting}>
         {loading ? <><span className="spinner"/>Matching you now...</> : "Submit for Review →"}
       </button>
     </div>
