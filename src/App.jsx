@@ -72,46 +72,38 @@ const style = `
   .google-icon { width: 20px; height: 20px; }
   .login-note { font-size: 12px; color: var(--ink-muted); margin-top: 20px; line-height: 1.6; }
 
-  /* Marketing landing page */
+  /* Marketing landing page — compact single-page layout */
   .marketing-page { max-width: 100%; overflow-x: hidden; }
-  .landing-section { padding: 80px 24px; max-width: 860px; margin: 0 auto; }
-  .landing-section.hero { padding-top: 100px; padding-bottom: 60px; text-align: center; }
-  .hero-wordmark { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; margin-bottom: 28px; }
-  .hero-wordmark span { color: var(--amber); }
-  .hero-headline { font-family: 'Fraunces', serif; font-size: clamp(32px, 5vw, 52px); font-weight: 300; line-height: 1.12; margin-bottom: 20px; color: var(--ink); }
+  .marketing-nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; border-bottom: 1px solid var(--border); }
+  .marketing-nav-logo { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 300; }
+  .marketing-nav-logo span { color: var(--amber); }
+  .marketing-nav-signin { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); cursor: pointer; background: none; border: 1.5px solid var(--amber); border-radius: 8px; padding: 7px 18px; transition: all 0.15s; font-weight: 500; }
+  .marketing-nav-signin:hover { background: var(--amber); color: white; }
+  .marketing-main { display: grid; grid-template-columns: 1fr 400px; gap: 48px; max-width: 1060px; margin: 0 auto; padding: 48px 32px 60px; align-items: start; }
+  @media (max-width: 820px) { .marketing-main { grid-template-columns: 1fr; gap: 32px; padding: 32px 20px 48px; } }
+  .marketing-left { padding-top: 12px; }
+  .hero-headline { font-family: 'Fraunces', serif; font-size: clamp(28px, 4vw, 40px); font-weight: 300; line-height: 1.15; margin-bottom: 16px; color: var(--ink); }
   .hero-headline em { font-style: italic; color: var(--amber); }
-  .hero-sub { font-size: 18px; color: var(--ink-muted); line-height: 1.65; max-width: 520px; margin: 0 auto 36px; }
-  .hero-cta { display: inline-flex; align-items: center; gap: 8px; padding: 15px 32px; background: var(--amber); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.18s; font-family: 'Instrument Sans', sans-serif; box-shadow: var(--shadow); }
-  .hero-cta:hover { opacity: 0.88; transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-
-  .landing-section.steps { background: white; padding: 72px 24px; max-width: 100%; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .steps-inner { max-width: 860px; margin: 0 auto; }
-  .section-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--amber); margin-bottom: 12px; text-align: center; }
-  .section-title { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; text-align: center; margin-bottom: 48px; }
-  .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
-  .step-card { text-align: center; padding: 24px 16px; }
-  .step-num { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: var(--amber); margin-bottom: 14px; font-weight: 500; }
-  .step-icon { font-size: 36px; margin-bottom: 14px; }
-  .step-title { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 400; margin-bottom: 10px; }
-  .step-desc { font-size: 14px; color: var(--ink-muted); line-height: 1.6; }
-  @media (max-width: 640px) { .steps-grid { grid-template-columns: 1fr; gap: 16px; } }
-
-  .landing-section.compare { padding: 72px 24px; }
-  .compare-inner { max-width: 860px; margin: 0 auto; }
-  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 8px; }
-  .compare-col { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 24px; }
+  .hero-sub { font-size: 16px; color: var(--ink-muted); line-height: 1.6; margin-bottom: 32px; }
+  .section-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--amber); margin-bottom: 10px; }
+  .steps-compact { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+  .step-row { display: flex; gap: 14px; align-items: flex-start; }
+  .step-num { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--amber); font-weight: 600; min-width: 22px; padding-top: 2px; }
+  .step-row strong { font-size: 14px; display: block; margin-bottom: 2px; }
+  .step-row p { font-size: 13px; color: var(--ink-muted); line-height: 1.5; margin: 0; }
+  .compare-compact { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .compare-col { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 18px 16px; }
   .compare-col.zurio { border-color: var(--amber); }
-  .compare-col-title { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .compare-col-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
   .compare-col.generic .compare-col-title { color: var(--ink-muted); }
   .compare-col.zurio .compare-col-title { color: var(--amber); }
-  .compare-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px; font-size: 14px; line-height: 1.55; color: var(--ink-light); }
+  .compare-item { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; font-size: 13px; line-height: 1.45; color: var(--ink-light); }
   .compare-item:last-child { margin-bottom: 0; }
-  .compare-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+  .compare-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
   .compare-col.zurio .compare-item { color: var(--ink); }
-  @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
-
-  .landing-section.get-started { text-align: center; padding-bottom: 100px; }
-  .get-started-inner { max-width: 440px; margin: 0 auto; }
+  @media (max-width: 640px) { .compare-compact { grid-template-columns: 1fr; } }
+  .marketing-right { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 24px; box-shadow: var(--shadow); }
+  .marketing-right h2 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 300; text-align: center; margin-bottom: 20px; }
 
   /* Role picker */
   .role-page { max-width: 560px; margin: 0 auto; padding: 80px 24px; text-align: center; }
@@ -374,141 +366,96 @@ function LoginPage({ onLogin }) {
 
   const onKey = e => e.key === "Enter" && handleSubmit();
 
-  const scrollToForm = () => {
-    formRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   return (
     <div className="marketing-page">
-      {/* ── Hero ── */}
-      <section className="landing-section hero">
-        <div className="hero-wordmark">Zurio</div>
-        <h1 className="hero-headline">
-          Your resume deserves <em>better</em> than generic advice
-        </h1>
-        <p className="hero-sub">
-          Get honest, specific feedback from a real professional in your field — not a bot, not a sales pitch.
-        </p>
-        <button className="hero-cta" onClick={scrollToForm}>
-          Get Started — It's Free →
+      {/* ── Top nav with sign-in ── */}
+      <nav className="marketing-nav">
+        <div className="marketing-nav-logo">Zurio</div>
+        <button className="marketing-nav-signin" onClick={() => { setMode("login"); formRef.current?.scrollIntoView({ behavior: "smooth" }); }}>
+          Sign In
         </button>
-      </section>
+      </nav>
 
-      {/* ── How It Works ── */}
-      <section className="landing-section steps">
-        <div className="steps-inner">
+      {/* ── Two-column: pitch left, form right ── */}
+      <div className="marketing-main">
+        <div className="marketing-left">
+          <h1 className="hero-headline">
+            Your resume deserves <em>better</em> than generic advice
+          </h1>
+          <p className="hero-sub">
+            Get honest, specific feedback from a real professional in your field — not a bot, not a sales pitch.
+          </p>
+
           <div className="section-eyebrow">How it works</div>
-          <h2 className="section-title">Three steps to real feedback</h2>
-          <div className="steps-grid">
-            <div className="step-card">
-              <div className="step-num">01</div>
-              <div className="step-icon">📄</div>
-              <h3 className="step-title">Upload your resume</h3>
-              <p className="step-desc">Submit your resume and tell us what role you're targeting. It takes under two minutes.</p>
+          <div className="steps-compact">
+            <div className="step-row">
+              <span className="step-num">01</span>
+              <div><strong>Upload your resume</strong><p>Tell us what role you're targeting. Takes under two minutes.</p></div>
             </div>
-            <div className="step-card">
-              <div className="step-num">02</div>
-              <div className="step-icon">🤝</div>
-              <h3 className="step-title">Get matched</h3>
-              <p className="step-desc">We pair you with a volunteer reviewer who's actually worked in your field and knows what matters.</p>
+            <div className="step-row">
+              <span className="step-num">02</span>
+              <div><strong>Get matched</strong><p>We pair you with a reviewer who's worked in your field.</p></div>
             </div>
-            <div className="step-card">
-              <div className="step-num">03</div>
-              <div className="step-icon">✍️</div>
-              <h3 className="step-title">Receive real feedback</h3>
-              <p className="step-desc">Specific, actionable advice from someone who knows what hiring managers in your area look for.</p>
+            <div className="step-row">
+              <span className="step-num">03</span>
+              <div><strong>Receive real feedback</strong><p>Specific, actionable advice — not generic templates.</p></div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── Comparison ── */}
-      <section className="landing-section compare">
-        <div className="compare-inner">
           <div className="section-eyebrow">Why Zurio?</div>
-          <h2 className="section-title">Not all resume feedback is created equal</h2>
-          <div className="compare-grid">
+          <div className="compare-compact">
             <div className="compare-col generic">
-              <div className="compare-col-title">Generic review services</div>
-              <div className="compare-item">
-                <span className="compare-icon">❌</span>
-                <span>Automated templates that could apply to anyone's resume</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">❌</span>
-                <span>Vague advice like "sharpen your positioning" — what does that even mean?</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">❌</span>
-                <span>A sales pitch disguised as feedback, upselling paid rewrites</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">❌</span>
-                <span>Reviewed by someone who's never worked in your field</span>
-              </div>
+              <div className="compare-col-title">Generic services</div>
+              <div className="compare-item"><span className="compare-icon">❌</span><span>Automated templates for anyone</span></div>
+              <div className="compare-item"><span className="compare-icon">❌</span><span>Vague advice, upselling rewrites</span></div>
+              <div className="compare-item"><span className="compare-icon">❌</span><span>Reviewer outside your field</span></div>
             </div>
             <div className="compare-col zurio">
               <div className="compare-col-title">Zurio</div>
-              <div className="compare-item">
-                <span className="compare-icon">✅</span>
-                <span>Matched with a real professional who's worked in your target field</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">✅</span>
-                <span>Specific advice like "lead your cloud migration bullet with the $2M savings"</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">✅</span>
-                <span>Completely free — no upsell, no hidden costs, ever</span>
-              </div>
-              <div className="compare-item">
-                <span className="compare-icon">✅</span>
-                <span>Honest feedback from someone who's been in your shoes</span>
-              </div>
+              <div className="compare-item"><span className="compare-icon">✅</span><span>Matched with a real professional</span></div>
+              <div className="compare-item"><span className="compare-icon">✅</span><span>Specific, honest feedback — free</span></div>
+              <div className="compare-item"><span className="compare-icon">✅</span><span>Someone who's been in your shoes</span></div>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* ── Get Started (form) ── */}
-      <section className="landing-section get-started" ref={formRef}>
-        <div className="get-started-inner">
-          <div className="section-eyebrow">Get started</div>
-          <h2 className="section-title">Ready for real feedback?</h2>
+        {/* ── Form (right side) ── */}
+        <div className="marketing-right" ref={formRef}>
+          <h2>Get started — it's free</h2>
 
-          {error && <div className="error-banner" style={{marginBottom:16}}>{error}</div>}
+          {error && <div className="error-banner" style={{marginBottom:12}}>{error}</div>}
 
-          <div style={{display:"flex",gap:0,marginBottom:20,background:"var(--cream)",borderRadius:10,padding:3,width:"100%",maxWidth:340,margin:"0 auto 20px"}}>
+          <div style={{display:"flex",gap:0,marginBottom:16,background:"var(--cream)",borderRadius:10,padding:3}}>
             <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="login"?"white":"transparent",color:mode==="login"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="login"?"var(--shadow)":"none",transition:"all 0.18s"}}>Sign In</button>
             <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="register"?"white":"transparent",color:mode==="register"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="register"?"var(--shadow)":"none",transition:"all 0.18s"}}>Create Account</button>
           </div>
 
           {mode === "register" && (
-            <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",margin:"0 auto"}}>
+            <div className="field" style={{textAlign:"left"}}>
               <label>Your name</label>
               <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Deepali Gosain" onKeyDown={onKey} />
             </div>
           )}
-          <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+          <div className="field" style={{textAlign:"left"}}>
             <label>Email address</label>
             <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={onKey} />
           </div>
-          <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+          <div className="field" style={{textAlign:"left"}}>
             <label>Password</label>
             <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="register"?"Min 6 characters":"Enter password"} onKeyDown={onKey} />
           </div>
           {mode === "register" && (
-            <div className="field" style={{width:"100%",maxWidth:340,textAlign:"left",marginTop:12,margin:"12px auto 0"}}>
+            <div className="field" style={{textAlign:"left"}}>
               <label>Confirm password</label>
               <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password" onKeyDown={onKey} />
             </div>
           )}
-          <button className="submit-btn amber" style={{marginTop:20,width:"100%",maxWidth:340,margin:"20px auto 0"}} onClick={handleSubmit} disabled={loading}>
+          <button className="submit-btn amber" style={{marginTop:8}} onClick={handleSubmit} disabled={loading}>
             {loading ? <><span className="spinner"/>{mode==="register"?"Creating account...":"Signing in..."}</> : mode==="register"?"Create Account →":"Sign In →"}
           </button>
-          <p className="login-note" style={{maxWidth:340,margin:"20px auto 0"}}>Free to use. Your resume data is private and only shared with your matched reviewer.</p>
+          <p className="login-note">Free to use. Your resume data is private and only shared with your matched reviewer.</p>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -688,7 +635,7 @@ function CandidateSignup({ user, onDone }) {
   const reviewerResume = user?.reviewer?.resumeText || "";
   const [form, setForm] = useState({
     name: user?.name || "", email: user?.email || "",
-    targetRole:"", targetArea:"", resume: reviewerResume, label: ""
+    currentRole:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -723,7 +670,7 @@ function CandidateSignup({ user, onDone }) {
         const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
         setForm(f => ({
           ...f,
-          // Only auto-fill area — info.role is the CURRENT role from resume, not the target role
+          currentRole: f.currentRole || info.role || "",
           targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
         }));
       } catch(e) { /* silently skip auto-fill on error */ }
@@ -769,6 +716,7 @@ function CandidateSignup({ user, onDone }) {
       {error && <div className="error-banner">{error}</div>}
       <div className="field"><label>Full name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} /></div>
       <div className="field"><label>Email address</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} /></div>
+      <div className="field"><label>Current role</label><input value={form.currentRole} onChange={e=>setForm(f=>({...f,currentRole:e.target.value}))} placeholder="e.g. Senior Engineer" />{extracting && <span style={{fontSize:11,color:"var(--amber)"}}>✦ Auto-detecting from resume...</span>}</div>
       <div className="two-inputs">
         <div className="field"><label>Target role</label><input value={form.targetRole} onChange={e=>setForm(f=>({...f,targetRole:e.target.value}))} placeholder="e.g. Staff Engineer" /></div>
         <div className="field">
