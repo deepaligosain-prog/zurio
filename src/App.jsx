@@ -726,7 +726,7 @@ function ReviewerDashboard({ reviewerId, user }) {
           No matches yet — you'll be notified when a candidate is paired with you.
         </div>
       )}
-      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map((m,i) => <MatchCard key={i} match={m} onRefresh={load} />)}
+      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} />)}
     </div>
   );
 }
@@ -818,15 +818,17 @@ function InlineReview({ match, onBack, onDone }) {
     try {
       await api("POST", "/api/feedback", { matchId: match.id, body: feedback });
       setDone(true);
-      setTimeout(onDone, 1600);
-    } catch(e) { setError(e.message); }
-    setSubmitting(false);
+      // Wait briefly so user sees the success message, then refresh the dashboard
+      await new Promise(r => setTimeout(r, 1500));
+      onDone();
+    } catch(e) { setError(e.message); setSubmitting(false); }
   };
 
   if (done) return (
     <div className="match-card" style={{textAlign:"center",padding:"40px"}}>
       <div style={{fontSize:36,marginBottom:12}}>✅</div>
       <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:300}}>Feedback sent!</div>
+      <p style={{fontSize:13,color:"var(--ink-muted)",marginTop:10}}>Returning to dashboard...</p>
     </div>
   );
 

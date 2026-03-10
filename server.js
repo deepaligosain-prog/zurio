@@ -237,7 +237,7 @@ app.get("/api/reviewers/:id", requireAuth, (req, res) => {
       // Strip resume from candidate summary — reviewer only needs name + targetRole for the card
       // Full resume is only sent in InlineReview (separate fetch)
       // Generate a descriptive anonymous label like "Software Eng. professional → Director"
-      const anonName = candidate ? `${candidate.targetArea} professional` : "Anonymous Candidate";
+      const anonName = candidate ? `${candidate.targetArea} professional targeting ${candidate.targetRole}` : "Anonymous Candidate";
       return { ...m, reviewer: findById("reviewers", m.reviewer_id), candidate: candidate ? { id: candidate.id, name: anonName, targetRole: candidate.targetRole, targetArea: candidate.targetArea, resume: candidate.resume, hasFile: !!candidate.fileBase64 } : null };
     })
     .filter(Boolean);
