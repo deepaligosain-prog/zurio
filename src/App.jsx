@@ -1091,7 +1091,7 @@ function AdminLogin({ onAuth }) {
   );
 }
 
-function AdminDataTools() {
+function AdminDataTools({ onDataChange }) {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState("");
@@ -1111,7 +1111,7 @@ function AdminDataTools() {
       URL.revokeObjectURL(url);
       const db = data.db;
       setLastExport({ users: db.users?.length, reviewers: db.reviewers?.length, candidates: db.candidates?.length, matches: db.matches?.length, feedback: db.feedback?.length, time: new Date().toLocaleTimeString() });
-      setMsg("Backup downloaded successfully.");
+      setMsg("Backup downloaded to your Downloads folder.");
     } catch(e) { setMsg("Export failed: " + e.message); }
     setExporting(false);
   };
@@ -1128,7 +1128,9 @@ function AdminDataTools() {
         setImporting(false); return;
       }
       await adminApi("POST", "/api/admin/import", data);
-      setMsg("Data imported successfully! Refresh the page to see updated data.");
+      setMsg(`Imported: ${counts}`);
+      // Auto-refresh the dashboard data instead of requiring manual refresh
+      if (onDataChange) onDataChange();
     } catch(e) { setMsg("Import failed: " + e.message); }
     setImporting(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -1223,7 +1225,7 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
-          <AdminDataTools />
+          <AdminDataTools onDataChange={load} />
 
           <div className="section-label" style={{marginBottom:14}}>Recent matches</div>
           {matches.slice(-10).reverse().map(m => (
