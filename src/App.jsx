@@ -1091,6 +1091,76 @@ function AdminLogin({ onAuth }) {
   );
 }
 
+function AdminDataTools() {
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [lastExport, setLastExport] = useState(null);
+  const fileRef = useRef(null);
+
+  const handleExport = async () => {
+    setExporting(true); setMsg("");
+    try {
+      const data = await adminApi("GET", "/api/admin/export");
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url; a.download = `zurio-backup-${ts}.json`; a.click();
+      URL.revokeObjectURL(url);
+      const db = data.db;
+      setLastExport({ users: db.users?.length, reviewers: db.reviewers?.length, candidates: db.candidates?.length, matches: db.matches?.length, feedback: db.feedback?.length, time: new Date().toLocaleTimeString() });
+      setMsg("Backup downloaded successfully.");
+    } catch(e) { setMsg("Export failed: " + e.message); }
+    setExporting(false);
+  };
+
+  const handleImport = async (file) => {
+    if (!file) return;
+    setImporting(true); setMsg("");
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.db || !data.nextId) throw new Error("Invalid backup file — needs { db, nextId }");
+      const counts = `${data.db.users?.length || 0} users, ${data.db.reviewers?.length || 0} reviewers, ${data.db.candidates?.length || 0} candidates, ${data.db.matches?.length || 0} matches, ${data.db.feedback?.length || 0} feedback`;
+      if (!confirm(`Import this backup?\n\n${counts}\n\nThis will REPLACE all current data.`)) {
+        setImporting(false); return;
+      }
+      await adminApi("POST", "/api/admin/import", data);
+      setMsg("Data imported successfully! Refresh the page to see updated data.");
+    } catch(e) { setMsg("Import failed: " + e.message); }
+    setImporting(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  return (
+    <div style={{marginBottom:28}}>
+      <div className="section-label" style={{marginBottom:14}}>Data Management</div>
+      <div className="admin-match" style={{padding:"18px 20px"}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <button className="action-btn" style={{background:"#DC2626",color:"white",border:"none",padding:"10px 20px",fontSize:13,borderRadius:8,cursor:"pointer"}}
+            onClick={handleExport} disabled={exporting}>
+            {exporting ? <><span className="spinner" style={{width:12,height:12,marginRight:6}}/>Exporting...</> : "Export Backup"}
+          </button>
+          <button className="action-btn outline" style={{padding:"10px 20px",fontSize:13,borderRadius:8,cursor:"pointer"}}
+            onClick={() => fileRef.current?.click()} disabled={importing}>
+            {importing ? <><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Importing...</> : "Import Backup"}
+          </button>
+          <input ref={fileRef} type="file" accept=".json" style={{display:"none"}} onChange={e => handleImport(e.target.files[0])} />
+          <span style={{fontSize:12,color:"var(--ink-muted)"}}>Export before deploy, import after</span>
+        </div>
+        {lastExport && (
+          <div style={{fontSize:12,color:"var(--green)",marginTop:10}}>
+            Last export ({lastExport.time}): {lastExport.users} users, {lastExport.reviewers} reviewers, {lastExport.candidates} candidates, {lastExport.matches} matches, {lastExport.feedback} feedback
+          </div>
+        )}
+        {msg && <div style={{fontSize:13,marginTop:10,color:msg.includes("failed")?"#DC2626":"var(--green)"}}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const [tab, setTab] = useState("overview");
   const [data, setData] = useState(null);
@@ -1153,6 +1223,8 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
+          <AdminDataTools />
+
           <div className="section-label" style={{marginBottom:14}}>Recent matches</div>
           {matches.slice(-10).reverse().map(m => (
             <div key={m.id} className="admin-match" style={{padding:"12px 16px",marginBottom:8}}>
