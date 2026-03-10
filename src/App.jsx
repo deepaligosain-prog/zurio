@@ -726,7 +726,7 @@ function ReviewerDashboard({ reviewerId, user }) {
           No matches yet — you'll be notified when a candidate is paired with you.
         </div>
       )}
-      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map((m,i) => <MatchCard key={i} match={m} onRefresh={load} />)}
+      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} />)}
     </div>
   );
 }
@@ -818,15 +818,17 @@ function InlineReview({ match, onBack, onDone }) {
     try {
       await api("POST", "/api/feedback", { matchId: match.id, body: feedback });
       setDone(true);
-      setTimeout(onDone, 1600);
-    } catch(e) { setError(e.message); }
-    setSubmitting(false);
+      // Wait briefly so user sees the success message, then refresh the dashboard
+      await new Promise(r => setTimeout(r, 1500));
+      onDone();
+    } catch(e) { setError(e.message); setSubmitting(false); }
   };
 
   if (done) return (
     <div className="match-card" style={{textAlign:"center",padding:"40px"}}>
       <div style={{fontSize:36,marginBottom:12}}>✅</div>
       <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:300}}>Feedback sent!</div>
+      <p style={{fontSize:13,color:"var(--ink-muted)",marginTop:10}}>Returning to dashboard...</p>
     </div>
   );
 
@@ -1089,6 +1091,76 @@ function AdminLogin({ onAuth }) {
   );
 }
 
+function AdminDataTools() {
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [lastExport, setLastExport] = useState(null);
+  const fileRef = useRef(null);
+
+  const handleExport = async () => {
+    setExporting(true); setMsg("");
+    try {
+      const data = await adminApi("GET", "/api/admin/export");
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      a.href = url; a.download = `zurio-backup-${ts}.json`; a.click();
+      URL.revokeObjectURL(url);
+      const db = data.db;
+      setLastExport({ users: db.users?.length, reviewers: db.reviewers?.length, candidates: db.candidates?.length, matches: db.matches?.length, feedback: db.feedback?.length, time: new Date().toLocaleTimeString() });
+      setMsg("Backup downloaded successfully.");
+    } catch(e) { setMsg("Export failed: " + e.message); }
+    setExporting(false);
+  };
+
+  const handleImport = async (file) => {
+    if (!file) return;
+    setImporting(true); setMsg("");
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.db || !data.nextId) throw new Error("Invalid backup file — needs { db, nextId }");
+      const counts = `${data.db.users?.length || 0} users, ${data.db.reviewers?.length || 0} reviewers, ${data.db.candidates?.length || 0} candidates, ${data.db.matches?.length || 0} matches, ${data.db.feedback?.length || 0} feedback`;
+      if (!confirm(`Import this backup?\n\n${counts}\n\nThis will REPLACE all current data.`)) {
+        setImporting(false); return;
+      }
+      await adminApi("POST", "/api/admin/import", data);
+      setMsg("Data imported successfully! Refresh the page to see updated data.");
+    } catch(e) { setMsg("Import failed: " + e.message); }
+    setImporting(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  return (
+    <div style={{marginBottom:28}}>
+      <div className="section-label" style={{marginBottom:14}}>Data Management</div>
+      <div className="admin-match" style={{padding:"18px 20px"}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <button className="action-btn" style={{background:"#DC2626",color:"white",border:"none",padding:"10px 20px",fontSize:13,borderRadius:8,cursor:"pointer"}}
+            onClick={handleExport} disabled={exporting}>
+            {exporting ? <><span className="spinner" style={{width:12,height:12,marginRight:6}}/>Exporting...</> : "Export Backup"}
+          </button>
+          <button className="action-btn outline" style={{padding:"10px 20px",fontSize:13,borderRadius:8,cursor:"pointer"}}
+            onClick={() => fileRef.current?.click()} disabled={importing}>
+            {importing ? <><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Importing...</> : "Import Backup"}
+          </button>
+          <input ref={fileRef} type="file" accept=".json" style={{display:"none"}} onChange={e => handleImport(e.target.files[0])} />
+          <span style={{fontSize:12,color:"var(--ink-muted)"}}>Export before deploy, import after</span>
+        </div>
+        {lastExport && (
+          <div style={{fontSize:12,color:"var(--green)",marginTop:10}}>
+            Last export ({lastExport.time}): {lastExport.users} users, {lastExport.reviewers} reviewers, {lastExport.candidates} candidates, {lastExport.matches} matches, {lastExport.feedback} feedback
+          </div>
+        )}
+        {msg && <div style={{fontSize:13,marginTop:10,color:msg.includes("failed")?"#DC2626":"var(--green)"}}>{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const [tab, setTab] = useState("overview");
   const [data, setData] = useState(null);
@@ -1151,6 +1223,8 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
+          <AdminDataTools />
+
           <div className="section-label" style={{marginBottom:14}}>Recent matches</div>
           {matches.slice(-10).reverse().map(m => (
             <div key={m.id} className="admin-match" style={{padding:"12px 16px",marginBottom:8}}>
@@ -1274,8 +1348,9 @@ function AdminMatchCard({ match: m, reviewers, onRefresh }) {
           </div>
           {m.rationale && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:4,fontStyle:"italic"}}>"{m.rationale}"</div>}
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           <span className={`badge ${m.status==="done"?"green":m.status==="pending"?"amber":"red"}`}>{m.status}</span>
+          {m.reviewer && (() => { const rv = reviewers.find(r=>r.id===m.reviewer.id); return rv && rv.pendingCount > 3 ? <span className="badge red" style={{fontSize:10}}>⚠️ {rv.pendingCount}/3 over capacity</span> : rv ? <span className="badge" style={{fontSize:10}}>{rv.pendingCount}/3 slots</span> : null; })()}
           {m.hasFeedback && <span className="badge green" style={{fontSize:10}}>has feedback</span>}
           {m.feedbackRating && <span style={{fontSize:12}}>{"★".repeat(m.feedbackRating)}</span>}
         </div>
@@ -1286,7 +1361,7 @@ function AdminMatchCard({ match: m, reviewers, onRefresh }) {
           <>
             <select className="admin-select" autoFocus onChange={e => e.target.value && reassign(e.target.value)} onBlur={()=>setReassigning(false)} disabled={busy}>
               <option value="">Pick a reviewer...</option>
-              {reviewers.map(r => <option key={r.id} value={r.id}>{r.name} — {r.role} at {r.company} ({r.pendingCount} pending)</option>)}
+              {reviewers.map(r => <option key={r.id} value={r.id}>{r.pendingCount >= 3 ? "⚠️ " : ""}{r.name} — {r.role} at {r.company} ({r.pendingCount}/3 slots used)</option>)}
             </select>
             <button onClick={()=>setReassigning(false)}>Cancel</button>
           </>
