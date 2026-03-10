@@ -933,21 +933,28 @@ app.post("/api/debug/match-scores", requireAuth, async (req, res) => {
     return s;
   }).join("\n\n---\n\n");
 
-  const system = `You are a matching engine. Return a JSON array only — no markdown, no explanation.
-Each object: { reviewer_id (number), score (1-10), reasoning (string), seniority_ok (boolean), field_match (boolean) }
+  const system = `You are a matching engine for a resume review platform. Return a JSON array only — no markdown, no explanation, no code fences.
+
+Each object must have:
+- reviewer_id (number)
+- score (1-10, integer)
+- reasoning (2-3 sentences explaining WHY this reviewer is a good fit. Be specific: mention the reviewer's relevant experience, roles, companies, or skills that make them qualified to review this candidate's resume.)
+- seniority_ok (boolean — is the reviewer senior enough?)
+- field_match (boolean — does the reviewer's field overlap?)
+
 Score based on: field overlap, industry relevance, seniority (reviewer must be MORE senior than candidate target).
-Return ALL reviewers ranked best to worst. JSON array only.`;
+Return ALL reviewers ranked best to worst. JSON array only — no other text.`;
 
   const prompt = `Candidate targeting: ${targetRole} in ${targetArea}\nResume: ${resume.slice(0, 1500)}\n\nReviewers:\n${reviewerSummaries}`;
 
   try {
-    const raw = await callClaude(system, prompt, 1200);
-    const cleaned = raw.replace(/\`\`\`json\n?|\n?\`\`\`/g, "").trim();
+    const raw = await callClaude(system, prompt, 2000);
+    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     const scores = JSON.parse(cleaned);
     // Enrich with reviewer details
     const enriched = scores.map(s => {
       const rev = pool.find(r => r.id === s.reviewer_id);
-      return { ...s, reviewer_name: rev?.name, reviewer_role: rev?.role, reviewer_company: rev?.company, reviewer_years: rev?.years, reviewer_areas: rev?.areas };
+      return { ...s, reviewer: rev?.name, reviewer_role: rev?.role, reviewer_company: rev?.company, reviewer_years: rev?.years, reviewer_areas: rev?.areas };
     });
     res.json({ scores: enriched, pool_size: pool.length });
   } catch(e) {
