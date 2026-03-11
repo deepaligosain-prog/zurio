@@ -816,16 +816,27 @@ const SHARE_TEXT = {
 function ShareBanner({ role }) {
   const text = SHARE_TEXT[role] || SHARE_TEXT.candidate;
   const [copied, setCopied] = useState(false);
-  const openLinkedIn = async () => {
+  const [showText, setShowText] = useState(false);
+  const copyAndOpen = async () => {
     try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 4000); } catch(e) {}
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(ZURIO_URL)}`, "_blank");
   };
   const openX = () => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
   return (
     <div className="share-banner">
-      <span className="share-banner-text">Enjoying Zurio? Share it →</span>
-      <button className="share-btn linkedin" onClick={openLinkedIn}>{copied ? "✓ Text copied — paste on LinkedIn" : "LinkedIn"}</button>
+      <span className="share-banner-text">Share your experience</span>
+      <button className="share-btn linkedin" onClick={() => setShowText(s => !s)}>LinkedIn</button>
       <button className="share-btn x" onClick={openX}>𝕏</button>
+      {showText && (
+        <div style={{width:"100%",marginTop:8}}>
+          <div style={{background:"var(--bg)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",fontSize:12,color:"var(--ink-light)",lineHeight:1.5,whiteSpace:"pre-wrap",position:"relative"}}>
+            {text}
+            <div style={{marginTop:10,display:"flex",gap:8}}>
+              <button className="share-btn" onClick={copyAndOpen} style={{fontSize:11}}>{copied ? "✓ Copied! Now paste on LinkedIn" : "Copy text & open LinkedIn"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
