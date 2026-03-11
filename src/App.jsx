@@ -260,6 +260,14 @@ const style = `
   .badge.red { background: #FEE2E2; color: #DC2626; }
   .admin-login { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 16px; }
   .admin-login h1 { font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300; }
+  .share-banner { display: flex; align-items: center; gap: 12px; background: var(--amber-light); border: 1px solid rgba(217,119,6,0.15); border-radius: 10px; padding: 10px 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .share-banner-text { font-size: 13px; color: var(--ink-light); flex: 1; min-width: 200px; }
+  .share-banner-text strong { color: var(--ink); }
+  .share-btns { display: flex; gap: 8px; }
+  .share-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 6px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; color: white; font-family: 'Instrument Sans', sans-serif; }
+  .share-btn:hover { opacity: 0.85; }
+  .share-btn.linkedin { background: #0A66C2; }
+  .share-btn.x { background: #000; }
   .admin-person { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 `;
 
@@ -797,6 +805,31 @@ function CandidateSignup({ user, onDone }) {
   );
 }
 
+const ZURIO_URL = "https://zurio-api-production.up.railway.app";
+const SHARE_TEXT = {
+  candidate: `Just got the most specific resume feedback I've ever received — from a real professional in my field, not a bot or a generic template. Check out Zurio — it's free.\n\n${ZURIO_URL}\n\n#resume #jobsearch #careers`,
+  reviewer: `Been volunteering as a resume reviewer on Zurio — giving real, specific feedback to people in my field. Feels great knowing your experience can make an impact on someone's career. If you've got industry experience, consider signing up.\n\n${ZURIO_URL}\n\n#mentorship #careers #giveback`,
+};
+
+function ShareBanner({ role }) {
+  const text = SHARE_TEXT[role] || SHARE_TEXT.candidate;
+  const [copied, setCopied] = useState(false);
+  const openLinkedIn = async () => {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 3000); } catch(e) {}
+    window.open("https://www.linkedin.com/feed/?shareActive=true", "_blank");
+  };
+  const openX = () => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  return (
+    <div className="share-banner">
+      <div className="share-banner-text"><strong>Enjoying Zurio?</strong> Spread the word so others can benefit too.</div>
+      <div className="share-btns">
+        <button className="share-btn linkedin" onClick={openLinkedIn}>{copied ? "✓ Copied — paste on LinkedIn" : "in Share on LinkedIn"}</button>
+        <button className="share-btn x" onClick={openX}>𝕏 Post</button>
+      </div>
+    </div>
+  );
+}
+
 function ReviewerDashboard({ reviewerId, user }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -818,6 +851,7 @@ function ReviewerDashboard({ reviewerId, user }) {
         </div>
         <span className="badge amber">● Active Reviewer</span>
       </div>
+      <ShareBanner role="reviewer" />
       <div className="section-label">Assigned matches ({matches.length})</div>
       {matches.length === 0 && (
         <div style={{padding:"40px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:15}}>
@@ -1153,6 +1187,7 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
         </div>
         <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none"}} onClick={onAddNew}>+ Add Resume</button>
       </div>
+      <ShareBanner role="candidate" />
       <div className="section-label" style={{marginBottom:16}}>Your submissions</div>
       {submissions.map((s, i) => <SubmissionCard key={i} submission={s} />)}
     </div>
