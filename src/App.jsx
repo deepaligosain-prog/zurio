@@ -509,7 +509,7 @@ function RolePicker({ user, onRoleSet }) {
 
 function ReviewerSignup({ user, onDone }) {
   const [form, setForm] = useState({
-    name: user?.name || "", role:"", company:"", years:"", areas:[], resumeText:""
+    name: user?.name || "", role:"", company:"", years:"", areas:[], resumeText:"", linkedin:""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -596,7 +596,11 @@ function ReviewerSignup({ user, onDone }) {
         </div>
       </div>
       <div className="field">
-        <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — improves matching)</span></label>
+        <label>LinkedIn profile <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — speeds up approval)</span></label>
+        <input type="url" value={form.linkedin} onChange={e=>setForm(f=>({...f,linkedin:e.target.value}))} placeholder="https://linkedin.com/in/yourname" />
+      </div>
+      <div className="field">
+        <label>Resume or LinkedIn PDF <span style={{color:"var(--ink-muted)",fontWeight:400}}>(optional — speeds up approval)</span></label>
         {form.resumeText && fileName.startsWith("Pre-filled") && (
           <div style={{background:"var(--cream)",border:"1px solid var(--amber)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--ink-muted)",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
             <span>✦</span>
@@ -837,6 +841,43 @@ function ReviewerDashboard({ reviewerId, user }) {
   if (!data) return <div className="thankyou-page"><div className="big-icon">⏳</div></div>;
 
   const { reviewer, matches } = data;
+  const status = reviewer.status || "approved"; // backcompat
+
+  if (status === "pending") return (
+    <div className="dashboard">
+      <div className="dash-header">
+        <div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
+          <h1 className="dash-title">{reviewer.name}</h1>
+          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{reviewer.role} · {reviewer.company}</div>
+        </div>
+        <span className="badge" style={{background:"#FEF9C3",color:"#A16207"}}>⏳ Under Review</span>
+      </div>
+      <div style={{background:"var(--amber-light)",border:"1px solid rgba(217,119,6,0.15)",borderRadius:12,padding:"24px 28px",marginTop:8}}>
+        <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>Your profile is under review</div>
+        <p style={{fontSize:14,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We review every reviewer profile to ensure candidates get quality feedback. You'll be notified once approved — typically within 24 hours.</p>
+        <div style={{marginTop:16,display:"flex",flexWrap:"wrap",gap:8}}>
+          {reviewer.areas?.map(a => <span key={a} className="chip active-amber" style={{cursor:"default"}}>{a}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (status === "rejected") return (
+    <div className="dashboard">
+      <div className="dash-header">
+        <div>
+          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
+          <h1 className="dash-title">{reviewer.name}</h1>
+        </div>
+        <span className="badge red">Declined</span>
+      </div>
+      <div style={{background:"#FEF2F2",border:"1px solid rgba(220,38,38,0.15)",borderRadius:12,padding:"24px 28px",marginTop:8}}>
+        <p style={{fontSize:14,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We're unable to approve your reviewer profile at this time. This could be due to limited experience in the selected areas. If you think this is an error, please reach out to us.</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="dashboard">
       <div className="dash-header">
@@ -1397,21 +1438,44 @@ function AdminDashboard() {
       {tab === "people" && (
         <>
           <div className="section-label" style={{marginBottom:14}}>Reviewers ({reviewers.length})</div>
-          {reviewers.map(r => (
-            <div key={r.id} className="admin-person">
-              <div>
-                <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
+          {[...reviewers].sort((a,b) => {
+            const order = {pending:0, approved:1, rejected:2};
+            return (order[a.status]??1) - (order[b.status]??1);
+          }).map(r => {
+            const st = r.status || "approved";
+            return (
+            <div key={r.id} className="admin-person" style={st==="pending"?{borderColor:"var(--amber)",borderWidth:2}:{}}>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontWeight:600,fontSize:15}}>{r.name}</span>
+                  <span className={`badge ${st==="approved"?"green":st==="rejected"?"red":"amber"}`} style={{fontSize:9}}>
+                    {st==="pending"?"⏳ Pending":st==="approved"?"✓ Approved":"✗ Rejected"}
+                  </span>
+                </div>
                 <div style={{fontSize:13,color:"var(--ink-muted)"}}>{r.role} · {r.company} · {r.years} yrs</div>
                 {r.email && <div style={{fontSize:12,color:"var(--ink-muted)",marginTop:2}}>{r.email}</div>}
+                {r.linkedin && <div style={{fontSize:12,marginTop:2}}><a href={r.linkedin} target="_blank" rel="noopener" style={{color:"#0A66C2"}}>LinkedIn ↗</a></div>}
                 <div style={{display:"flex",gap:4,marginTop:6,flexWrap:"wrap"}}>
                   {(r.areas||[]).map(a => <span key={a} className="badge" style={{fontSize:10}}>{a}</span>)}
+                  {(r.flags||[]).map(f => <span key={f} className="badge red" style={{fontSize:9}}>⚑ {f.replace(/_/g," ")}</span>)}
                 </div>
+                {r.aiAssessment && <div style={{fontSize:12,color:"var(--ink-light)",marginTop:8,padding:"6px 10px",background:"var(--cream)",borderRadius:6,lineHeight:1.5}}>{r.aiAssessment}</div>}
               </div>
-              <div style={{textAlign:"right"}}>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
                 <div style={{fontSize:13}}><span style={{color:"var(--amber)"}}>{r.pendingCount} pending</span> · <span style={{color:"var(--green)"}}>{r.doneCount} done</span></div>
+                {st === "pending" && (
+                  <div style={{display:"flex",gap:6}}>
+                    <button className="action-btn" style={{background:"var(--green)",color:"white",border:"none",padding:"6px 14px",fontSize:12}} onClick={async()=>{try{await adminApi("POST",`/api/admin/reviewers/${r.id}/approve`);load();}catch(e){alert(e.message);}}}>✓ Approve</button>
+                    <button className="action-btn" style={{background:"white",color:"#DC2626",border:"1.5px solid #DC2626",padding:"6px 14px",fontSize:12}} onClick={async()=>{try{await adminApi("POST",`/api/admin/reviewers/${r.id}/reject`);load();}catch(e){alert(e.message);}}}>✗ Reject</button>
+                  </div>
+                )}
+                {st === "rejected" && (
+                  <button className="action-btn" style={{background:"var(--green)",color:"white",border:"none",padding:"6px 14px",fontSize:12}} onClick={async()=>{try{await adminApi("POST",`/api/admin/reviewers/${r.id}/approve`);load();}catch(e){alert(e.message);}}}>✓ Approve</button>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <div className="section-label" style={{marginTop:32,marginBottom:14}}>Candidates ({candidates.length})</div>
           {candidates.map(c => (

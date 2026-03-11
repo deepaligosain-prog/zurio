@@ -202,23 +202,93 @@ async function callClaude(system, userMsg, maxTokens = 200) {
 }
 
 // ─── Reviewer routes ──────────────────────────────────────────────────────────
-app.post("/api/reviewers", requireAuth, (req, res) => {
-  const { name, role, company, years, areas, bio, resumeText } = req.body;
+app.post("/api/reviewers", requireAuth, async (req, res) => {
+  const { name, role, company, years, areas, bio, resumeText, linkedin } = req.body;
   if (!name || !role || !company || !years || !areas?.length)
     return res.status(400).json({ error: "Missing required fields" });
 
   let reviewer = req.user.reviewer_id ? findById("reviewers", req.user.reviewer_id) : null;
+  const reviewerData = { name, role, company, years, areas, bio: bio || "", resumeText: resumeText || "", linkedin: linkedin || "" };
   if (reviewer) {
-    Object.assign(reviewer, { name, role, company, years, areas, bio: bio || "", resumeText: resumeText || "" });
+    Object.assign(reviewer, reviewerData);
+    if (!reviewer.status) reviewer.status = "pending"; // backfill status for existing
     saveDB();
   } else {
-    reviewer = insert("reviewers", { name, role, company, years, areas, bio: bio || "", resumeText: resumeText || "" });
+    reviewer = insert("reviewers", { ...reviewerData, status: "pending", aiAssessment: "", flags: [] });
     req.user.reviewer_id = reviewer.id;
     req.user.role = "reviewer";
     saveDB();
   }
+
+  // AI vetting (async, don't block response)
+  if (reviewer.status === "pending") {
+    vetReviewer(reviewer.id).catch(e => console.error("[vet-reviewer] Error:", e.message));
+  }
+
   res.json({ reviewer });
 });
+
+async function vetReviewer(reviewerId) {
+  const reviewer = findById("reviewers", reviewerId);
+  if (!reviewer) return;
+
+  const flags = [];
+  if (reviewer.years === "1–3") flags.push("low_experience");
+  if (!reviewer.resumeText) flags.push("no_resume");
+  if (!reviewer.linkedin) flags.push("no_linkedin");
+
+  // AI assessment
+  let aiAssessment = "";
+  try {
+    const sys = `You assess reviewer qualifications for a resume review platform. Return JSON only, no markdown:
+{"score": <1-5>, "assessment": "<2-3 sentence assessment>", "concerns": ["<issue1>", ...]}
+
+Score guide:
+5 = Highly qualified — senior leader with clear hiring/mentoring experience
+4 = Well qualified — experienced professional with relevant domain expertise
+3 = Adequate — mid-level with some relevant experience
+2 = Questionable — limited experience or vague background
+1 = Unqualified — no clear expertise, very junior, or suspicious profile
+
+Check for:
+- Does the role + company + years seem plausible?
+- If resume provided, does it show real experience with specific companies/metrics?
+- Do years claimed match resume timeline?
+- Are selected expertise areas consistent with their background?
+- Are they senior enough to give useful resume advice?`;
+
+    const prompt = `Reviewer profile:
+Name: ${reviewer.name}
+Role: ${reviewer.role}
+Company: ${reviewer.company}
+Years: ${reviewer.years}
+Areas: ${reviewer.areas.join(", ")}
+LinkedIn: ${reviewer.linkedin || "Not provided"}
+${reviewer.resumeText ? `Resume:\n${reviewer.resumeText.slice(0, 2000)}` : "Resume: Not provided"}`;
+
+    const raw = await callClaude(sys, prompt, 400);
+    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      aiAssessment = `Score: ${result.score}/5 — ${result.assessment}`;
+      if (result.concerns?.length) {
+        result.concerns.forEach(c => {
+          const flag = c.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z_]/g, "").slice(0, 30);
+          if (flag && !flags.includes(flag)) flags.push(flag);
+        });
+      }
+    }
+  } catch (e) {
+    aiAssessment = "AI assessment unavailable — review manually.";
+    console.error("[vet-reviewer] Claude error:", e.message);
+  }
+
+  reviewer.aiAssessment = aiAssessment;
+  reviewer.flags = flags;
+  saveDB();
+  console.log(`[vet-reviewer] ${reviewer.name}: ${aiAssessment} | flags: [${flags.join(", ")}]`);
+}
 
 app.get("/api/reviewers/:id", requireAuth, (req, res) => {
   const reviewer = findById("reviewers", req.params.id);
@@ -314,6 +384,8 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
   const getReviewerOwner = (reviewerId) => db.users.find(u => u.reviewer_id === reviewerId);
 
   const eligibleReviewers = db.reviewers.filter(r => {
+    // Only approved reviewers can be matched
+    if (r.status !== "approved") return false;
     // Capacity check
     if ((reviewerLoad[r.id] || 0) >= MAX_ACTIVE_REVIEWS) return false;
     // Self-match check: exclude if the reviewer's user account is the same as the candidate's
@@ -480,6 +552,7 @@ async function drainWaitlist(freedReviewerId) {
 
   const reviewer = findById("reviewers", freedReviewerId);
   if (!reviewer) return;
+  if (reviewer.status !== "approved") return; // only approved reviewers get matches
   const reviewerUser = db.users.find(u => u.reviewer_id === freedReviewerId);
 
   const waitlisted = db.matches.filter(m => m.status === "waitlist");
@@ -797,6 +870,10 @@ app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
     return {
       ...r, resumeText: undefined,
       email: user?.email,
+      status: r.status || "approved", // backcompat: old reviewers default to approved
+      linkedin: r.linkedin || "",
+      aiAssessment: r.aiAssessment || "",
+      flags: r.flags || [],
       pendingCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "pending").length,
       doneCount: db.matches.filter(m => m.reviewer_id === r.id && m.status === "done").length,
     };
@@ -901,6 +978,27 @@ app.delete("/api/admin/matches/:id", checkAdmin, (req, res) => {
   db.matches.splice(idx, 1);
   saveDB();
   res.json({ ok: true });
+});
+
+// ─── Reviewer approval ──────────────────────────────────────────────────────
+app.post("/api/admin/reviewers/:id/approve", checkAdmin, async (req, res) => {
+  const reviewer = findById("reviewers", parseInt(req.params.id));
+  if (!reviewer) return res.status(404).json({ error: "Reviewer not found" });
+  reviewer.status = "approved";
+  saveDB();
+  console.log(`[admin] Approved reviewer: ${reviewer.name} (${reviewer.id})`);
+  // Try to assign waiting candidates to the newly approved reviewer
+  try { await drainWaitlist(reviewer.id); } catch(e) { console.error("[drainWaitlist]", e.message); }
+  res.json({ reviewer: { id: reviewer.id, name: reviewer.name, status: reviewer.status } });
+});
+
+app.post("/api/admin/reviewers/:id/reject", checkAdmin, (req, res) => {
+  const reviewer = findById("reviewers", parseInt(req.params.id));
+  if (!reviewer) return res.status(404).json({ error: "Reviewer not found" });
+  reviewer.status = "rejected";
+  saveDB();
+  console.log(`[admin] Rejected reviewer: ${reviewer.name} (${reviewer.id})`);
+  res.json({ reviewer: { id: reviewer.id, name: reviewer.name, status: reviewer.status } });
 });
 
 // Serve React frontend in production
