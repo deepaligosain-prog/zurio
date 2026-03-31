@@ -495,7 +495,7 @@ ${reviewerSummaries}`;
         html: `<p>Hi ${bestReviewer.name},</p>
 <p>You've been matched with a candidate targeting <strong>${candidate.targetRole}</strong>.</p>
 <p><strong>Why you:</strong> ${rationale || "Your background aligns with their target role."}</p>
-<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurily →</a></p>
+<p><a href="${process.env.SERVER_URL || "https://zurily.com"}">Open Zurily →</a></p>
 <p style="color:#888;font-size:12px">You're receiving this because you signed up as a reviewer on Zurily.</p>`
       });
     }
@@ -604,7 +604,7 @@ async function drainWaitlist(freedReviewerId) {
       filled++;
       if (reviewerUser?.email) {
         sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurily",
-          html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurily →</a></p>` });
+          html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurily.com"}">Open Zurily →</a></p>` });
       }
     }
   }
@@ -748,7 +748,7 @@ app.post("/api/feedback", requireAuth, (req, res) => {
       html: `<p>Hi ${candidate.name},</p>
 <p>Your resume review is ready on <strong>Zurily</strong>!</p>
 <p>An expert in your target field has reviewed your resume and left detailed feedback.</p>
-<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Read your feedback →</a></p>
+<p><a href="${process.env.SERVER_URL || "https://zurily.com"}">Read your feedback →</a></p>
 <p style="color:#888;font-size:12px">You're receiving this because you submitted your resume on Zurily.</p>`
     });
   }
