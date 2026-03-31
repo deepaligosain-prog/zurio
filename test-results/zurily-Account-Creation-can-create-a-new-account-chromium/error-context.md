@@ -1,0 +1,75 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]: Zurily
+    - generic [ref=e6]: BETA
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - heading "Your resume deserves better than generic advice" [level=1] [ref=e9]:
+        - text: Your resume deserves
+        - emphasis [ref=e10]: better
+        - text: than generic advice
+      - paragraph [ref=e11]: Get honest, specific feedback from a real professional in your field — not a bot, not a sales pitch.
+      - generic [ref=e12]: How it works
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: "01"
+          - generic [ref=e16]:
+            - strong [ref=e17]: Upload your resume
+            - paragraph [ref=e18]: Tell us what role you're targeting. Takes under two minutes.
+        - generic [ref=e19]:
+          - generic [ref=e20]: "02"
+          - generic [ref=e21]:
+            - strong [ref=e22]: Get matched
+            - paragraph [ref=e23]: We pair you with a reviewer who's worked in your field.
+        - generic [ref=e24]:
+          - generic [ref=e25]: "03"
+          - generic [ref=e26]:
+            - strong [ref=e27]: Receive real feedback
+            - paragraph [ref=e28]: Specific, actionable advice — not generic templates.
+      - generic [ref=e29]: Why Zurily?
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: Generic services
+          - generic [ref=e33]:
+            - generic [ref=e34]: •
+            - generic [ref=e35]: Automated templates for anyone
+          - generic [ref=e36]:
+            - generic [ref=e37]: •
+            - generic [ref=e38]: Vague advice, upselling rewrites
+          - generic [ref=e39]:
+            - generic [ref=e40]: •
+            - generic [ref=e41]: Reviewer outside your field
+        - generic [ref=e42]:
+          - generic [ref=e43]: Zurily
+          - generic [ref=e44]:
+            - generic [ref=e45]: ✦
+            - generic [ref=e46]: Matched with a real professional
+          - generic [ref=e47]:
+            - generic [ref=e48]: ✦
+            - generic [ref=e49]: Specific, honest feedback — free
+          - generic [ref=e50]:
+            - generic [ref=e51]: ✦
+            - generic [ref=e52]: Someone who's been in your shoes
+    - generic [ref=e53]:
+      - heading "Get started — it's free" [level=2] [ref=e54]
+      - generic [ref=e55]:
+        - button "Sign In" [ref=e56] [cursor=pointer]
+        - button "Create Account" [ref=e57] [cursor=pointer]
+      - generic [ref=e58]:
+        - generic [ref=e59]: Your name
+        - textbox "e.g. Deepali Gosain" [ref=e60]
+      - generic [ref=e61]:
+        - generic [ref=e62]: Email address
+        - textbox "you@example.com" [active] [ref=e63]: test-candidate-1774990069473@test.com
+      - generic [ref=e64]:
+        - generic [ref=e65]: Password
+        - textbox "Min 6 characters" [ref=e66]
+      - generic [ref=e67]:
+        - generic [ref=e68]: Confirm password
+        - textbox "Re-enter password" [ref=e69]
+      - button "Create Account →" [ref=e70] [cursor=pointer]
+      - paragraph [ref=e71]: Free to use. Your resume data is private and only shared with your matched reviewer.
+```
