@@ -1,4 +1,4 @@
-// src/App.jsx — Zurio with Google Auth
+// src/App.jsx — Zurily with Google Auth
 
 import { useState, useEffect, useRef } from "react";
 import mammoth from "mammoth";
@@ -93,15 +93,15 @@ const style = `
   .step-row p { font-size: 13px; color: var(--ink-muted); line-height: 1.5; margin: 0; }
   .compare-compact { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .compare-col { background: white; border: 1.5px solid var(--border); border-radius: 12px; padding: 18px 16px; }
-  .compare-col.zurio { border-color: var(--amber); }
+  .compare-col.zurily { border-color: var(--amber); }
   .compare-col-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
   .compare-col.generic .compare-col-title { color: var(--ink-muted); }
-  .compare-col.zurio .compare-col-title { color: var(--amber); }
+  .compare-col.zurily .compare-col-title { color: var(--amber); }
   .compare-item { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 10px; font-size: 13px; line-height: 1.45; color: var(--ink-light); }
   .compare-item:last-child { margin-bottom: 0; }
   .compare-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; color: var(--ink-muted); }
-  .compare-col.zurio .compare-icon { color: var(--amber); }
-  .compare-col.zurio .compare-item { color: var(--ink); }
+  .compare-col.zurily .compare-icon { color: var(--amber); }
+  .compare-col.zurily .compare-item { color: var(--ink); }
   @media (max-width: 640px) { .compare-compact { grid-template-columns: 1fr; } }
   .marketing-right { background: white; border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 24px; box-shadow: var(--shadow); }
   .marketing-right h2 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 300; text-align: center; margin-bottom: 20px; }
@@ -291,7 +291,7 @@ async function api(method, path, body) {
 }
 
 async function adminApi(method, path, body) {
-  const secret = sessionStorage.getItem("zurio-admin-secret");
+  const secret = sessionStorage.getItem("zurily-admin-secret");
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
@@ -312,7 +312,7 @@ function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
   const isCandidate = currentView === "candidate-status" || currentView === "candidate-setup";
   return (
     <nav className="top-nav">
-      <div className="nav-wordmark" onClick={onHome}>Zurio</div>
+      <div className="nav-wordmark" onClick={onHome}>Zurily</div>
       {user ? (
         <div className="nav-user">
           <div className="nav-tabs">
@@ -377,7 +377,7 @@ function LoginPage({ onLogin }) {
     <div className="marketing-page">
       {/* ── Top nav ── */}
       <nav className="marketing-nav">
-        <div className="marketing-nav-logo">Zurio</div>
+        <div className="marketing-nav-logo">Zurily</div>
         <span className="mono" style={{fontSize:10,color:"var(--ink-muted)",letterSpacing:"0.12em"}}>BETA</span>
       </nav>
 
@@ -407,7 +407,7 @@ function LoginPage({ onLogin }) {
             </div>
           </div>
 
-          <div className="section-eyebrow">Why Zurio?</div>
+          <div className="section-eyebrow">Why Zurily?</div>
           <div className="compare-compact">
             <div className="compare-col generic">
               <div className="compare-col-title">Generic services</div>
@@ -415,8 +415,8 @@ function LoginPage({ onLogin }) {
               <div className="compare-item"><span className="compare-icon">•</span><span>Vague advice, upselling rewrites</span></div>
               <div className="compare-item"><span className="compare-icon">•</span><span>Reviewer outside your field</span></div>
             </div>
-            <div className="compare-col zurio">
-              <div className="compare-col-title">Zurio</div>
+            <div className="compare-col zurily">
+              <div className="compare-col-title">Zurily</div>
               <div className="compare-item"><span className="compare-icon">✦</span><span>Matched with a real professional</span></div>
               <div className="compare-item"><span className="compare-icon">✦</span><span>Specific, honest feedback — free</span></div>
               <div className="compare-item"><span className="compare-icon">✦</span><span>Someone who's been in your shoes</span></div>
@@ -482,7 +482,7 @@ function RolePicker({ user, onRoleSet }) {
     <div className="role-page">
       <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:10}}>Welcome, {user.name?.split(" ")[0]} 👋</div>
       <h1 className="form-heading serif" style={{textAlign:"center"}}>
-        {hasReviewer || hasCandidate ? "Join as the other role too?" : "How are you using Zurio?"}
+        {hasReviewer || hasCandidate ? "Join as the other role too?" : "How are you using Zurily?"}
       </h1>
       <p style={{fontSize:15,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>You can be both a reviewer and a candidate.</p>
       <div className="role-grid">
@@ -809,8 +809,8 @@ function CandidateSignup({ user, onDone }) {
 
 const ZURIO_URL = "https://zurio-api-production.up.railway.app";
 const SHARE_TEXT = {
-  candidate: `Just got the most specific resume feedback I've ever received — from a real professional in my field, not a bot or a generic template. Check out Zurio — it's free.\n\n${ZURIO_URL}\n\n#resume #jobsearch #careers`,
-  reviewer: `Been volunteering as a resume reviewer on Zurio — giving real, specific feedback to people in my field. Feels great knowing your experience can make an impact on someone's career. If you've got industry experience, consider signing up.\n\n${ZURIO_URL}\n\n#mentorship #careers #giveback`,
+  candidate: `Just got the most specific resume feedback I've ever received — from a real professional in my field, not a bot or a generic template. Check out Zurily — it's free.\n\n${ZURIO_URL}\n\n#resume #jobsearch #careers`,
+  reviewer: `Been volunteering as a resume reviewer on Zurily — giving real, specific feedback to people in my field. Feels great knowing your experience can make an impact on someone's career. If you've got industry experience, consider signing up.\n\n${ZURIO_URL}\n\n#mentorship #careers #giveback`,
 };
 
 function ShareBanner({ role }) {
@@ -1250,11 +1250,11 @@ function AdminLogin({ onAuth }) {
   const submit = async () => {
     setLoading(true); setErr("");
     try {
-      sessionStorage.setItem("zurio-admin-secret", pw);
+      sessionStorage.setItem("zurily-admin-secret", pw);
       await adminApi("GET", "/api/admin/dashboard");
       onAuth();
     } catch(e) {
-      sessionStorage.removeItem("zurio-admin-secret");
+      sessionStorage.removeItem("zurily-admin-secret");
       setErr("Invalid admin password.");
     }
     setLoading(false);
@@ -1262,7 +1262,7 @@ function AdminLogin({ onAuth }) {
   return (
     <div className="admin-login">
       <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.14em",color:"#DC2626"}}>Admin</div>
-      <h1>Zurio Admin</h1>
+      <h1>Zurily Admin</h1>
       {err && <div className="error-banner" style={{maxWidth:340,width:"100%"}}>{err}</div>}
       <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}
         placeholder="Admin password" style={{maxWidth:340,width:"100%",padding:"12px 16px",borderRadius:10,border:"1.5px solid var(--border)",fontSize:15,outline:"none"}} />
@@ -1288,7 +1288,7 @@ function AdminDataTools({ onDataChange }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      a.href = url; a.download = `zurio-backup-${ts}.json`; a.click();
+      a.href = url; a.download = `zurily-backup-${ts}.json`; a.click();
       URL.revokeObjectURL(url);
       const db = data.db;
       setLastExport({ users: db.users?.length, reviewers: db.reviewers?.length, candidates: db.candidates?.length, matches: db.matches?.length, feedback: db.feedback?.length, time: new Date().toLocaleTimeString() });
@@ -1376,7 +1376,7 @@ function AdminDashboard() {
     <div className="admin-page">
       <div style={{marginBottom:24}}>
         <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.14em",color:"#DC2626",marginBottom:6}}>Admin Dashboard</div>
-        <h1 className="dash-title">Zurio Admin</h1>
+        <h1 className="dash-title">Zurily Admin</h1>
       </div>
 
       <div className="admin-tabs">
@@ -1596,7 +1596,7 @@ export default function App() {
     if (params.has("admin")) {
       window.history.replaceState({}, "", window.location.pathname);
       // Check if already authed from sessionStorage
-      if (sessionStorage.getItem("zurio-admin-secret")) {
+      if (sessionStorage.getItem("zurily-admin-secret")) {
         setAdminMode(true);
         setView("admin");
       } else {
@@ -1652,7 +1652,7 @@ export default function App() {
       <style>{style}</style>
       {adminMode ? (
         <nav className="top-nav">
-          <div className="nav-wordmark">Zurio</div>
+          <div className="nav-wordmark">Zurily</div>
           <span className="badge red" style={{fontSize:11}}>ADMIN MODE</span>
         </nav>
       ) : view !== "login" ? (

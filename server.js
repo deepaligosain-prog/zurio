@@ -1,4 +1,4 @@
-// server.js — Zurio
+// server.js — Zurily
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -10,7 +10,7 @@ import bcrypt from "bcryptjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DB_FILE = path.join(__dirname, "zurio-data.json");
+const DB_FILE = path.join(__dirname, "zurily-data.json");
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 app.set("trust proxy", 1);
@@ -18,7 +18,7 @@ app.use(cors({ origin: CLIENT_URL, credentials: true }));
 app.use(express.json({ limit: "50mb" }));
 
 app.use(session({
-  secret: process.env.SESSION_SECRET || "zurio-dev-secret-change-in-prod",
+  secret: process.env.SESSION_SECRET || "zurily-dev-secret-change-in-prod",
   resave: false,
   saveUninitialized: false,
   cookie: { 
@@ -91,7 +91,7 @@ loadDB();
   }
 }
 
-console.log("✅ Zurio database ready");
+console.log("✅ Zurily database ready");
 
 // ─── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -179,7 +179,7 @@ async function sendEmail({ to, subject, html }) {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ from: "Zurio <notifications@zurio.com>", to, subject, html }),
+      body: JSON.stringify({ from: "Zurily <notifications@zurily.com>", to, subject, html }),
     });
     const data = await res.json();
     if (!res.ok) console.error("[email] Resend error:", data);
@@ -491,12 +491,12 @@ ${reviewerSummaries}`;
     if (reviewerUser?.email) {
       sendEmail({
         to: reviewerUser.email,
-        subject: "You have a new resume to review on Zurio",
+        subject: "You have a new resume to review on Zurily",
         html: `<p>Hi ${bestReviewer.name},</p>
 <p>You've been matched with a candidate targeting <strong>${candidate.targetRole}</strong>.</p>
 <p><strong>Why you:</strong> ${rationale || "Your background aligns with their target role."}</p>
-<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>
-<p style="color:#888;font-size:12px">You're receiving this because you signed up as a reviewer on Zurio.</p>`
+<p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurily →</a></p>
+<p style="color:#888;font-size:12px">You're receiving this because you signed up as a reviewer on Zurily.</p>`
       });
     }
   }
@@ -603,8 +603,8 @@ async function drainWaitlist(freedReviewerId) {
       saveDB();
       filled++;
       if (reviewerUser?.email) {
-        sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurio",
-          html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurio →</a></p>` });
+        sendEmail({ to: reviewerUser.email, subject: "New resume to review on Zurily",
+          html: `<p>Hi ${reviewer.name},</p><p>You've been matched with a new candidate targeting <strong>${candidate.targetRole}</strong>.</p><p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Open Zurily →</a></p>` });
       }
     }
   }
@@ -744,12 +744,12 @@ app.post("/api/feedback", requireAuth, (req, res) => {
   if (candidate?.email) {
     sendEmail({
       to: candidate.email,
-      subject: "Your resume review is ready on Zurio",
+      subject: "Your resume review is ready on Zurily",
       html: `<p>Hi ${candidate.name},</p>
-<p>Your resume review is ready on <strong>Zurio</strong>!</p>
+<p>Your resume review is ready on <strong>Zurily</strong>!</p>
 <p>An expert in your target field has reviewed your resume and left detailed feedback.</p>
 <p><a href="${process.env.SERVER_URL || "https://zurio-api-production.up.railway.app"}">Read your feedback →</a></p>
-<p style="color:#888;font-size:12px">You're receiving this because you submitted your resume on Zurio.</p>`
+<p style="color:#888;font-size:12px">You're receiving this because you submitted your resume on Zurily.</p>`
     });
   }
 
@@ -826,7 +826,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // ─── Admin: DB export/import (protected by ADMIN_SECRET) ─────────────────────
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "zurio-admin-local";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "zurily-admin-local";
 
 function checkAdmin(req, res, next) {
   const token = req.headers["x-admin-secret"] || req.query.secret;
@@ -1010,7 +1010,7 @@ app.get("*", (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(200).send(`<h2>Zurio API is running. dist not found at ${distPath}</h2>`);
+    res.status(200).send(`<h2>Zurily API is running. dist not found at ${distPath}</h2>`);
   }
 });
 
@@ -1060,4 +1060,4 @@ Return ALL reviewers ranked best to worst. JSON array only — no other text.`;
   }
 });
 
-app.listen(PORT, () => console.log(`✅ Zurio server on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`✅ Zurily server on http://localhost:${PORT}`));
