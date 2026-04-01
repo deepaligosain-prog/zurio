@@ -6,6 +6,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import session from "express-session";
 import bcrypt from "bcryptjs";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -28,6 +30,58 @@ app.use(session({
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
   }
 }));
+
+// ─── Passport / Google OAuth ──────────────────────────────────────────────────
+const SERVER_URL = process.env.SERVER_URL || "https://zurily.com";
+
+app.use(passport.initialize());
+app.use(passport.session());
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser((id, done) => {
+  const user = findById("users", id);
+  done(null, user || false);
+});
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${SERVER_URL}/auth/google/callback`,
+  }, (_accessToken, _refreshToken, profile, done) => {
+    const email = profile.emails?.[0]?.value?.toLowerCase();
+    if (!email) return done(new Error("No email from Google"));
+    let user = findByField("users", "email", email);
+    if (!user) {
+      user = insert("users", {
+        email,
+        name: profile.displayName || email.split("@")[0],
+        passwordHash: null,
+        picture: profile.photos?.[0]?.value || null,
+        googleId: profile.id,
+        role: null,
+        reviewer_id: null,
+        candidate_ids: [],
+      });
+    } else if (!user.googleId) {
+      user.googleId = profile.id;
+      if (!user.picture) user.picture = profile.photos?.[0]?.value || null;
+      saveDB();
+    }
+    done(null, user);
+  }));
+
+  app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+  app.get("/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/?error=google_auth_failed" }),
+    (req, res) => {
+      req.session.userId = req.user.id;
+      res.redirect("/");
+    }
+  );
+} else {
+  console.log("[google-oauth] Skipped — GOOGLE_CLIENT_ID/SECRET not set");
+}
 
 // ─── JSON DB ──────────────────────────────────────────────────────────────────
 let db = { users: [], reviewers: [], candidates: [], matches: [], feedback: [] };
