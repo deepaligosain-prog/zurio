@@ -7,8 +7,8 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "https://zurily.com",
-    headless: false,          // Show the browser so you can watch!
-    slowMo: 500,              // Slow down actions by 500ms for visibility
+    headless: false,
+    slowMo: 800,
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     trace: "retain-on-failure",
