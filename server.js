@@ -81,6 +81,10 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   );
 } else {
   console.log("[google-oauth] Skipped — GOOGLE_CLIENT_ID/SECRET not set");
+  // Fallback route so clicking "Continue with Google" shows a clear error instead of reloading
+  app.get("/auth/google", (req, res) => {
+    res.status(503).send("Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.");
+  });
 }
 
 // ─── JSON DB ──────────────────────────────────────────────────────────────────
