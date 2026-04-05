@@ -308,6 +308,7 @@ async function adminApi(method, path, body) {
 // ─── Components ───────────────────────────────────────────────────────────────
 
 function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
+  const isHome = currentView === "home";
   const isReviewer = currentView === "reviewer-dashboard" || currentView === "reviewer-setup";
   const isCandidate = currentView === "candidate-status" || currentView === "candidate-setup";
   return (
@@ -316,6 +317,10 @@ function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
       {user ? (
         <div className="nav-user">
           <div className="nav-tabs">
+            <button
+              className={`nav-tab ${isHome ? "active-blue" : ""}`}
+              onClick={onHome}
+            >Home</button>
             <button
               className={`nav-tab ${isReviewer ? "active-amber" : ""}`}
               onClick={() => onTabSelect("reviewer")}
@@ -480,43 +485,43 @@ function LoginPage({ onLogin }) {
   );
 }
 
-function RolePicker({ user, onRoleSet }) {
-  const [loading, setLoading] = useState(false);
-
-  const pick = async (role) => {
-    setLoading(role);
-    await api("POST", "/api/me/role", { role });
-    onRoleSet(role);
-    setLoading(false);
-  };
-
+function HomeDashboard({ user, onGo }) {
   const hasReviewer = !!user?.reviewer_id;
-  const hasCandidate = !!user?.candidate_id;
+  const hasCandidate = !!(user?.candidate_ids?.length);
+  const firstName = user?.name?.split(" ")[0];
 
   return (
     <div className="role-page">
-      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:10}}>Welcome, {user.name?.split(" ")[0]} 👋</div>
-      <h1 className="form-heading serif" style={{textAlign:"center"}}>
-        {hasReviewer || hasCandidate ? "Join as the other role too?" : "How are you using Zurily?"}
-      </h1>
-      <p style={{fontSize:15,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>You can be both a reviewer and a candidate.</p>
+      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:10}}>Welcome back, {firstName}</div>
+      <h1 className="form-heading serif" style={{textAlign:"center"}}>Your Profiles</h1>
+      <p style={{fontSize:15,color:"var(--ink-muted)",marginTop:8,textAlign:"center",marginBottom:32}}>You can be both a candidate and a reviewer.</p>
       <div className="role-grid">
-        {!hasReviewer && (
-          <div className="role-card reviewer" onClick={() => !loading && pick("reviewer")}>
-            <div className="role-icon">🎓</div>
-            <div className="role-title">I'm a Reviewer</div>
-            <p className="role-desc">I have experience to share and want to give feedback on resumes.</p>
-            {loading === "reviewer" && <div style={{marginTop:12}}><span className="spinner dark" style={{width:14,height:14}}/></div>}
+        <div className="role-card candidate" onClick={() => onGo("candidate")} style={{cursor:"pointer"}}>
+          <div className="role-icon">📄</div>
+          <div className="role-title">Candidate Profile</div>
+          {hasCandidate
+            ? <p className="role-desc" style={{color:"var(--ink-light)"}}>✓ Active — view status &amp; feedback</p>
+            : <p className="role-desc">Submit your resume and get matched with a real industry professional for honest feedback.</p>
+          }
+          <div style={{marginTop:14}}>
+            <span className="action-btn" style={{fontSize:12,padding:"6px 14px",background:"var(--blue-light)",color:"#1d4ed8",border:"1px solid #bfdbfe",borderRadius:6,display:"inline-block"}}>
+              {hasCandidate ? "View Candidate Profile →" : "Set up Candidate Profile →"}
+            </span>
           </div>
-        )}
-        {!hasCandidate && (
-          <div className="role-card candidate" onClick={() => !loading && pick("candidate")}>
-            <div className="role-icon">📄</div>
-            <div className="role-title">I'm a Candidate</div>
-            <p className="role-desc">I'm job searching and want an expert to review my resume.</p>
-            {loading === "candidate" && <div style={{marginTop:12}}><span className="spinner dark" style={{width:14,height:14}}/></div>}
+        </div>
+        <div className="role-card reviewer" onClick={() => onGo("reviewer")} style={{cursor:"pointer"}}>
+          <div className="role-icon">🎓</div>
+          <div className="role-title">Reviewer Profile</div>
+          {hasReviewer
+            ? <p className="role-desc" style={{color:"var(--ink-light)"}}>✓ Active — view matches &amp; feedback queue</p>
+            : <p className="role-desc">Share your industry expertise. Give real, specific feedback to candidates in your field.</p>
+          }
+          <div style={{marginTop:14}}>
+            <span className="action-btn" style={{fontSize:12,padding:"6px 14px",background:"var(--amber-light)",color:"#92400e",border:"1px solid #fde68a",borderRadius:6,display:"inline-block"}}>
+              {hasReviewer ? "View Reviewer Profile →" : "Set up Reviewer Profile →"}
+            </span>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -948,8 +953,6 @@ function MatchCard({ match, onRefresh }) {
 
 function InlineReview({ match, onBack, onDone }) {
   const [feedback, setFeedback] = useState("");
-  const [aiText, setAiText] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -985,16 +988,6 @@ function InlineReview({ match, onBack, onDone }) {
     }
     return () => { if (fileBlobUrl) URL.revokeObjectURL(fileBlobUrl); };
   }, [match.candidate?.id]);
-
-  const getAI = async () => {
-    setAiLoading(true); setAiText("");
-    try {
-      const system = `You are helping an experienced ${match.reviewer?.role} write candid, specific resume feedback for a job seeker targeting ${match.candidate?.targetRole}. Give 3-4 pointed, actionable observations. Be direct.`;
-      const res = await api("POST", "/api/claude", { system, messages: [{ role:"user", content:`Reviewer: ${match.reviewer?.name}, ${match.reviewer?.role} at ${match.reviewer?.company}\nCandidate targeting: ${match.candidate?.targetRole}\n\nResume:\n${match.candidate?.resume}` }], max_tokens:1000 });
-      setAiText(res.text);
-    } catch(e) { setError(e.message); }
-    setAiLoading(false);
-  };
 
   const [aiScore, setAiScore] = useState(null); // { score, suggestion }
   const [scoring, setScoring] = useState(false);
@@ -1054,21 +1047,11 @@ function InlineReview({ match, onBack, onDone }) {
         <div className="panel">
           <div className="panel-header">
             <span className="panel-title">Your Feedback</span>
-            <button className="ai-btn" onClick={getAI} disabled={aiLoading}>
-              {aiLoading ? <><span className="spinner dark" style={{width:12,height:12}}/>Thinking...</> : "✦ AI Assist"}
-            </button>
           </div>
           <div className="panel-body">
             {error && <div className="error-banner">{error}</div>}
             <textarea className="feedback-textarea" value={feedback} onChange={e=>setFeedback(e.target.value)}
               placeholder={`Write honest feedback.\n\nWhat's strong? What needs work? What one thing would make this resume stand out for ${match.candidate?.targetRole}?`} />
-            {aiText && (
-              <div className="ai-suggestion">
-                <div className="ai-suggestion-label">✦ AI starting points — edit before using</div>
-                <div className="ai-suggestion-text">{aiText}</div>
-                <button className="action-btn outline" style={{marginTop:12,fontSize:12}} onClick={()=>{setFeedback(f=>f?f+"\n\n"+aiText:aiText);setAiText("");}}>Use as starting point →</button>
-              </div>
-            )}
           </div>
           {aiScore && (
             <div style={{padding:"12px 16px",background:aiScore.score>=7?"#e8f5e9":aiScore.score>=5?"#fff8e1":"#fce4ec",borderTop:"1px solid var(--border)"}}>
@@ -1628,15 +1611,12 @@ export default function App() {
 
   const routeUser = (u) => {
     if (!u) { setView("login"); return; }
-    if (!u.reviewer_id && !(u.candidate_ids?.length)) { setView("pick-role"); return; }
-    // Default to whichever profile they have; prefer reviewer if both
-    if (u.reviewer_id) setView("reviewer-dashboard");
-    else setView("candidate-status");
+    setView("home");
   };
 
   const handleTabSelect = async (tab) => {
     if (tab === "reviewer") {
-      const fresh = await refreshUser(); // ensure candidates[] is loaded before reviewer form mounts
+      const fresh = await refreshUser();
       setView(fresh?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
     } else {
       setView(user?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
@@ -1679,10 +1659,11 @@ export default function App() {
 
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
 
-      {view === "pick-role" && user && (
-        <RolePicker user={user} onRoleSet={async (role) => {
-          await refreshUser();
-          setView(role === "reviewer" ? "reviewer-setup" : "candidate-setup");
+      {view === "home" && user && (
+        <HomeDashboard user={user} onGo={async (role) => {
+          const fresh = await refreshUser();
+          if (role === "reviewer") setView(fresh?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
+          else setView(fresh?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
         }} />
       )}
 
