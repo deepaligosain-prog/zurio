@@ -840,7 +840,7 @@ function CandidateSignup({ user, onDone }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [resumeTab, setResumeTab] = useState(prefillResume ? "paste" : "upload");
+  const [resumeTab, setResumeTab] = useState("upload");
   const [fileName, setFileName] = useState(prefillLabel);
   const [dragOver, setDragOver] = useState(false);
   const [labelEdited, setLabelEdited] = useState(false);
