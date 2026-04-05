@@ -644,7 +644,7 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }
       <div style={{marginBottom:40}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Get reviewed</div>
-          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Submit another</button>}
+          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={() => onSetupCandidate(true)}>+ Submit another</button>}
         </div>
         {hasCandidate
           ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
@@ -828,9 +828,9 @@ function ReviewerSignup({ user, onDone }) {
   );
 }
 
-function CandidateSignup({ user, onDone }) {
-  const reviewerResume = user?.reviewer?.resumeText || "";
-  const onboardingResume = user?.resumeText || "";
+function CandidateSignup({ user, fresh, onDone }) {
+  const reviewerResume = !fresh ? (user?.reviewer?.resumeText || "") : "";
+  const onboardingResume = !fresh ? (user?.resumeText || "") : "";
   const prefillResume = reviewerResume || onboardingResume;
   const prefillLabel = reviewerResume ? "Pre-filled from your reviewer profile" : onboardingResume ? "Pre-filled from your profile" : "";
   const [form, setForm] = useState({
@@ -1774,7 +1774,8 @@ export default function App() {
     setView("home");
   };
 
-  const goSetupCandidate = () => setView("candidate-setup");
+  const [freshCandidateSetup, setFreshCandidateSetup] = useState(false);
+  const goSetupCandidate = (fresh = false) => { setFreshCandidateSetup(fresh); setView("candidate-setup"); };
   const goSetupReviewer = async () => {
     await refreshUser();
     setView("reviewer-setup");
@@ -1830,7 +1831,7 @@ export default function App() {
       )}
 
       {view === "candidate-setup" && user && (
-        <CandidateSignup user={user} onDone={async () => { await refreshUser(); setView("home"); }} />
+        <CandidateSignup user={user} fresh={freshCandidateSetup} onDone={async () => { await refreshUser(); setView("home"); }} />
       )}
     </>
   );
