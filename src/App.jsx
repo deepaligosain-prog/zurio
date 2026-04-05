@@ -415,13 +415,22 @@ function LoginPage({ onLogin }) {
 
         {/* ── Form (right side) ── */}
         <div className="marketing-right" ref={formRef}>
-          <h2>Get started — it's free</h2>
+          <h2>{mode === "register" ? "Create your account" : "Welcome back"}</h2>
 
           {error && <div className="error-banner" style={{marginBottom:12}}>{error}</div>}
 
-          <div style={{display:"flex",gap:0,marginBottom:16,background:"var(--cream)",borderRadius:10,padding:3}}>
-            <button onClick={()=>{setMode("login");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="login"?"white":"transparent",color:mode==="login"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="login"?"var(--shadow)":"none",transition:"all 0.18s"}}>Sign In</button>
-            <button onClick={()=>{setMode("register");setError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:mode==="register"?"white":"transparent",color:mode==="register"?"var(--ink)":"var(--ink-muted)",boxShadow:mode==="register"?"var(--shadow)":"none",transition:"all 0.18s"}}>Create Account</button>
+          {/* Google — primary CTA */}
+          <a href={`${window.location.origin}/auth/google`} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"10px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"white",color:"var(--ink)",fontFamily:"'Instrument Sans',sans-serif",fontWeight:500,fontSize:13,textDecoration:"none",transition:"box-shadow 0.15s",cursor:"pointer",marginBottom:16}}
+            onMouseEnter={e=>e.currentTarget.style.boxShadow="var(--shadow-md)"}
+            onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.4-.1-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.4 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.7 0-14.4 4.4-17.7 11.7z"/><path fill="#FBBC05" d="M24 45c5.8 0 10.7-1.9 14.3-5.2l-6.6-5.4C29.8 36.1 27 37 24 37c-5.8 0-10.7-3.2-11.8-8.5l-7 5.4C8 40.1 15.4 45 24 45z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.6 2.8-2.3 5.2-4.7 6.9l6.6 5.4c3.8-3.5 6.3-8.7 6.3-15.8 0-1.4-.1-2.7-.5-4z"/></svg>
+            Continue with Google
+          </a>
+
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{flex:1,height:1,background:"var(--border)"}}/>
+            <span style={{fontSize:12,color:"var(--ink-muted)"}}>or use email</span>
+            <div style={{flex:1,height:1,background:"var(--border)"}}/>
           </div>
 
           {mode === "register" && (
@@ -448,18 +457,12 @@ function LoginPage({ onLogin }) {
             {loading ? <><span className="spinner"/>{mode==="register"?"Creating account...":"Signing in..."}</> : mode==="register"?"Create Account →":"Sign In →"}
           </button>
 
-          <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 10px"}}>
-            <div style={{flex:1,height:1,background:"var(--border)"}}/>
-            <span style={{fontSize:12,color:"var(--ink-muted)"}}>or</span>
-            <div style={{flex:1,height:1,background:"var(--border)"}}/>
-          </div>
-
-          <a href={`${window.location.origin}/auth/google`} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"9px 16px",borderRadius:8,border:"1.5px solid var(--border)",background:"white",color:"var(--ink)",fontFamily:"'Instrument Sans',sans-serif",fontWeight:500,fontSize:13,textDecoration:"none",transition:"box-shadow 0.15s",cursor:"pointer"}}
-            onMouseEnter={e=>e.currentTarget.style.boxShadow="var(--shadow-md)"}
-            onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
-            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.4-.1-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.4 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3c-7.7 0-14.4 4.4-17.7 11.7z"/><path fill="#FBBC05" d="M24 45c5.8 0 10.7-1.9 14.3-5.2l-6.6-5.4C29.8 36.1 27 37 24 37c-5.8 0-10.7-3.2-11.8-8.5l-7 5.4C8 40.1 15.4 45 24 45z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.6 2.8-2.3 5.2-4.7 6.9l6.6 5.4c3.8-3.5 6.3-8.7 6.3-15.8 0-1.4-.1-2.7-.5-4z"/></svg>
-            Continue with Google
-          </a>
+          <p style={{fontSize:12,color:"var(--ink-muted)",textAlign:"center",marginTop:14}}>
+            {mode === "login"
+              ? <>New here? <button onClick={()=>{setMode("register");setError("");}} style={{background:"none",border:"none",color:"var(--blue)",cursor:"pointer",fontSize:12,padding:0,textDecoration:"underline"}}>Create an account</button></>
+              : <>Already have an account? <button onClick={()=>{setMode("login");setError("");}} style={{background:"none",border:"none",color:"var(--blue)",cursor:"pointer",fontSize:12,padding:0,textDecoration:"underline"}}>Sign in</button></>
+            }
+          </p>
 
           <p className="login-note">Free to use. Your resume data is private and only shared with your matched reviewer.</p>
         </div>
@@ -468,69 +471,162 @@ function LoginPage({ onLogin }) {
   );
 }
 
+function Onboarding({ user, onDone }) {
+  const [form, setForm] = useState({ targetRole:"", targetArea:"", resume:"" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [fileData, setFileData] = useState(null);
+  const extractedRef = useRef("");
+  const fileRef = useRef(null);
+
+  const extractFromResume = async (text) => {
+    if (!text || text.trim().length < 80) return;
+    if (extractedRef.current === text) return;
+    extractedRef.current = text;
+    setExtracting(true);
+    try {
+      const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
+      setForm(f => ({
+        ...f,
+        targetRole: f.targetRole || info.role || "",
+        targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+      }));
+    } catch(e) {}
+    setExtracting(false);
+  };
+
+  const readFile = async (file) => {
+    if (!file) return;
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["pdf","doc","docx","txt"].includes(ext)) { setError("Please upload a PDF, Word (.docx), or .txt file."); return; }
+    setError(""); setFileName(file.name);
+    try {
+      const text = await extractTextFromFile(file);
+      setForm(f => ({ ...f, resume: text }));
+      extractFromResume(text);
+      const reader = new FileReader();
+      reader.onload = () => setFileData({ base64: reader.result.split(",")[1], type: file.type || "application/octet-stream", name: file.name });
+      reader.readAsDataURL(file);
+    } catch(e) { setError(e.message); }
+  };
+
+  const valid = form.resume.trim().length > 50 && form.targetRole && form.targetArea;
+
+  const handleSubmit = async () => {
+    setLoading(true); setError("");
+    try {
+      const payload = {
+        name: user.name, email: user.email,
+        targetRole: form.targetRole, targetArea: form.targetArea,
+        resume: form.resume, currentRole: "", company: "", label: `${form.targetRole} Resume`,
+      };
+      if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
+      const result = await api("POST", "/api/candidates", payload);
+      if (result.redactions?.length > 0) {
+        const types = [...new Set(result.redactions.map(r => r.type))];
+        alert(`We automatically redacted ${result.redactions.length} item(s) from your resume for privacy: ${types.join(", ")}.`);
+      }
+      onDone(result);
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="form-page">
+      <div className="form-eyebrow blue">Get started</div>
+      <h1 className="form-heading">Upload your resume</h1>
+      <p className="form-subheading">We'll extract your details and match you with a reviewer in your field.</p>
+      {error && <div className="error-banner">{error}</div>}
+
+      {/* Resume upload — TOP */}
+      <div className="field">
+        <label>Resume</label>
+        <div
+          className={`drop-zone${dragOver?" drag-over":""}`}
+          onClick={() => fileRef.current?.click()}
+          onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+          onDragLeave={()=>setDragOver(false)}
+          onDrop={e=>{e.preventDefault();setDragOver(false);readFile(e.dataTransfer.files[0]);}}
+        >
+          {fileName
+            ? <><span style={{fontSize:18}}>📄</span><span style={{fontWeight:600,fontSize:14}}>{fileName}</span><span style={{fontSize:12,color:"var(--ink-muted)"}}>Click to replace</span></>
+            : <><span style={{fontSize:28}}>⬆</span><span style={{fontWeight:600,fontSize:14}}>Drop your resume here or click to upload</span><span style={{fontSize:12,color:"var(--ink-muted)"}}>PDF, Word (.docx), or .txt</span></>
+          }
+          <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" style={{display:"none"}} onChange={e=>readFile(e.target.files[0])} />
+        </div>
+        {extracting && <span style={{fontSize:11,color:"var(--amber)",marginTop:6,display:"block"}}>✦ Reading your resume...</span>}
+      </div>
+
+      {/* Fields below — auto-filled from resume */}
+      <div className="two-inputs">
+        <div className="field">
+          <label>Target role</label>
+          <input value={form.targetRole} onChange={e=>setForm(f=>({...f,targetRole:e.target.value}))} placeholder="e.g. Product Manager" />
+        </div>
+        <div className="field">
+          <label>Field / Area</label>
+          <select value={form.targetArea} onChange={e=>setForm(f=>({...f,targetArea:e.target.value}))}>
+            <option value="">Select...</option>
+            {EXPERTISE_AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <button className="submit-btn amber" onClick={handleSubmit} disabled={loading || !valid}>
+        {loading ? <><span className="spinner"/>Submitting...</> : "Get my resume reviewed →"}
+      </button>
+      {!valid && form.resume.trim().length > 0 && <p style={{fontSize:12,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>Fill in target role and field to continue.</p>}
+    </div>
+  );
+}
+
 function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
   const hasReviewer = !!user?.reviewer_id;
-  const [tab, setTab] = useState("candidate");
 
   return (
     <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
-      {/* Tabs */}
-      <div style={{display:"flex",gap:4,marginBottom:28,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
-        {[["candidate","Candidate"],["reviewer","Reviewer"]].map(([key,label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            style={{
-              background:"none",border:"none",cursor:"pointer",
-              padding:"8px 20px",fontSize:13,fontWeight:600,
-              color: tab===key ? "var(--blue)" : "var(--ink-muted)",
-              borderBottom: tab===key ? "2px solid var(--blue)" : "2px solid transparent",
-              marginBottom:-1,
-              transition:"color 0.15s",
-            }}
-          >{label}</button>
-        ))}
+      {/* Candidate Section */}
+      <div style={{marginBottom:40}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Get reviewed</div>
+          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
+        </div>
+        {hasCandidate
+          ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
+          : (
+            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+              <div style={{fontSize:28,marginBottom:12}}>📄</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Submit another resume</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Get matched with a real industry professional for honest, specific feedback.</p>
+              <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Submit a Resume</button>
+            </div>
+          )
+        }
       </div>
 
-      {tab === "candidate" && (
-        <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Candidate Profile</div>
-            {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
-          </div>
-          {hasCandidate
-            ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
-            : (
-              <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
-                <div style={{fontSize:28,marginBottom:12}}>📄</div>
-                <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Get your resume reviewed</div>
-                <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Submit your resume and get matched with a real industry professional for honest, specific feedback.</p>
-                <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Set up Candidate Profile</button>
-              </div>
-            )
-          }
-        </div>
-      )}
+      <div style={{borderTop:"1px solid var(--border)",marginBottom:40}} />
 
-      {tab === "reviewer" && (
-        <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Reviewer Profile</div>
-          </div>
-          {hasReviewer
-            ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
-            : (
-              <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
-                <div style={{fontSize:28,marginBottom:12}}>🎓</div>
-                <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Make an impact in your field</div>
-                <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your industry expertise. Give real, specific feedback to candidates targeting your field.</p>
-                <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Set up Reviewer Profile</button>
-              </div>
-            )
-          }
-        </div>
-      )}
+      {/* Reviewer Section */}
+      <div style={{marginBottom:40}}>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Give back</div>
+        {hasReviewer
+          ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
+          : (
+            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+              <div style={{fontSize:28,marginBottom:12}}>🎓</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Help someone land their next role</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your expertise. Give real, specific feedback to candidates in your field.</p>
+              <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Become a Reviewer</button>
+            </div>
+          )
+        }
+      </div>
+
+      <ShareBanner role={hasReviewer ? "reviewer" : "candidate"} />
     </div>
   );
 }
@@ -1253,7 +1349,6 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
     <div>
       <div className="section-label" style={{marginBottom:16}}>{submissions.length} resume{submissions.length !== 1 ? "s" : ""} submitted</div>
       {submissions.map((s, i) => <SubmissionCard key={i} submission={s} />)}
-      <ShareBanner role="candidate" />
     </div>
   );
 }
@@ -1629,6 +1724,8 @@ export default function App() {
 
   const routeUser = (u) => {
     if (!u) { setView("login"); return; }
+    // New users (no profiles yet) go to onboarding
+    if (!u.candidate_ids?.length && !u.reviewer_id) { setView("onboarding"); return; }
     setView("home");
   };
 
@@ -1673,6 +1770,10 @@ export default function App() {
       {view === "admin" && <AdminDashboard />}
 
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
+
+      {view === "onboarding" && user && (
+        <Onboarding user={user} onDone={async () => { await refreshUser(); setView("home"); }} />
+      )}
 
       {view === "home" && user && (
         <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} />
