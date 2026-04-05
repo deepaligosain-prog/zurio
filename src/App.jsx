@@ -545,19 +545,29 @@ function Onboarding({ user, onDone }) {
       <div className="field">
         <label>Resume</label>
         <div
-          className={`drop-zone${dragOver?" drag-over":""}`}
+          className={`upload-zone ${dragOver?"drag-over":""} ${fileName?"has-file":""}`}
           onClick={() => fileRef.current?.click()}
           onDragOver={e=>{e.preventDefault();setDragOver(true);}}
           onDragLeave={()=>setDragOver(false)}
           onDrop={e=>{e.preventDefault();setDragOver(false);readFile(e.dataTransfer.files[0]);}}
         >
-          {fileName
-            ? <><span style={{fontSize:18}}>📄</span><span style={{fontWeight:600,fontSize:14}}>{fileName}</span><span style={{fontSize:12,color:"var(--ink-muted)"}}>Click to replace</span></>
-            : <><span style={{fontSize:28}}>⬆</span><span style={{fontWeight:600,fontSize:14}}>Drop your resume here or click to upload</span><span style={{fontSize:12,color:"var(--ink-muted)"}}>PDF, Word (.docx), or .txt</span></>
-          }
           <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.txt" style={{display:"none"}} onChange={e=>readFile(e.target.files[0])} />
+          {fileName ? (
+            <>
+              <div className="upload-icon">✅</div>
+              <div className="upload-label">File loaded</div>
+              <div className="upload-filename">{fileName}</div>
+              <div className="upload-sub" style={{marginTop:6}}>Click to replace</div>
+            </>
+          ) : (
+            <>
+              <div className="upload-icon">📎</div>
+              <div className="upload-label">Drop your resume here or click to upload</div>
+              <div className="upload-sub">PDF, Word (.docx), or .txt · Click to browse</div>
+            </>
+          )}
         </div>
-        {extracting && <span style={{fontSize:11,color:"var(--amber)",marginTop:6,display:"block"}}>✦ Reading your resume...</span>}
+        {extracting && <div style={{textAlign:"center",color:"var(--amber)",fontSize:13,marginTop:8}}><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Reading your resume...</div>}
       </div>
 
       {/* Fields below — auto-filled from resume */}
