@@ -538,7 +538,7 @@ function Onboarding({ user, onDone }) {
     <div className="form-page">
       <div className="form-eyebrow blue">Get started</div>
       <h1 className="form-heading">Upload your resume</h1>
-      <p className="form-subheading">We'll extract your details and match you with a reviewer in your field.</p>
+      <p className="form-subheading">We'll read your resume and set up your profile. You choose what to do next.</p>
       {error && <div className="error-banner">{error}</div>}
 
       {/* Resume upload — TOP */}
