@@ -524,16 +524,40 @@ function ReviewerSignup({ user, onDone }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
-  // On mount: fetch most recent candidate submission resume and pre-fill
+  // On mount: fetch most recent candidate submission and pre-fill resume + role
   useEffect(() => {
-    api("GET", "/api/candidates/mine").then(d => {
-      const subs = d.submissions;
-      if (!subs?.length) return;
-      const resume = subs[subs.length - 1]?.candidate?.resume;
-      if (!resume) return;
-      setForm(f => ({ ...f, resumeText: resume }));
-      setFileName("Pre-filled from your candidate submission");
-    }).catch(() => {}); // silently skip if endpoint not available
+    const prefill = async () => {
+      try {
+        const d = await api("GET", "/api/candidates/mine");
+        const subs = d.submissions;
+        if (!subs?.length) return;
+        const latest = subs[subs.length - 1]?.candidate;
+        if (!latest) return;
+        setForm(f => ({
+          ...f,
+          resumeText: latest.resume || f.resumeText,
+          role: f.role || latest.currentRole || "",
+          company: f.company || latest.company || "",
+        }));
+        if (latest.resume) {
+          setFileName("Pre-filled from your candidate profile");
+          // Run extraction if role/company still missing
+          if (!latest.currentRole || !latest.company) {
+            try {
+              const info = await api("POST", "/api/extract-resume-info", { resumeText: latest.resume });
+              setForm(f => ({
+                ...f,
+                role: f.role || info.role || "",
+                company: f.company || info.company || "",
+                years: f.years || info.years || "",
+                areas: f.areas.length > 0 ? f.areas : (info.areas || []),
+              }));
+            } catch(e) { /* silently skip */ }
+          }
+        }
+      } catch(e) { /* silently skip */ }
+    };
+    prefill();
   }, []);
 
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
@@ -651,7 +675,7 @@ function CandidateSignup({ user, onDone }) {
   const reviewerResume = user?.reviewer?.resumeText || "";
   const [form, setForm] = useState({
     name: user?.name || "", email: user?.email || "",
-    currentRole:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
+    currentRole:"", company:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -680,6 +704,7 @@ function CandidateSignup({ user, onDone }) {
       setForm(f => ({
         ...f,
         currentRole: f.currentRole || info.role || "",
+        company: f.company || info.company || "",
         targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
       }));
     } catch(e) { /* silently skip auto-fill on error */ }
