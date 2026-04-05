@@ -487,21 +487,20 @@ function Onboarding({ user, onDone }) {
     return match ? `https://www.${match[0]}` : "";
   };
 
-  const extractFromResume = async (text) => {
+  const extractFromResume = async (text, forceUpdate = false) => {
     if (!text || text.trim().length < 80) return;
-    if (extractedRef.current === text) return;
+    if (!forceUpdate && extractedRef.current === text) return;
     extractedRef.current = text;
     setExtracting(true);
-    // Extract LinkedIn immediately from raw text
     const li = extractLinkedin(text);
-    if (li) setForm(f => ({ ...f, linkedin: f.linkedin || li }));
+    if (li) setForm(f => ({ ...f, linkedin: forceUpdate ? li : (f.linkedin || li) }));
     try {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
-        name: f.name || info.name || "",
-        currentRole: f.currentRole || info.role || "",
-        company: f.company || info.company || "",
+        name: forceUpdate ? (info.name || f.name) : (f.name || info.name || ""),
+        currentRole: forceUpdate ? (info.role || f.currentRole) : (f.currentRole || info.role || ""),
+        company: forceUpdate ? (info.company || f.company) : (f.company || info.company || ""),
       }));
     } catch(e) {}
     setExtracting(false);
@@ -515,7 +514,7 @@ function Onboarding({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      extractFromResume(text);
+      extractFromResume(text, true); // explicit upload — always overwrite extracted fields
     } catch(e) { setError(e.message); }
   };
 
@@ -582,7 +581,59 @@ function Onboarding({ user, onDone }) {
   );
 }
 
-function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
+function ResumeCard({ user, onSetupCandidate, onDone }) {
+  const [targetRole, setTargetRole] = useState(user?.currentRole || "");
+  const [targetArea, setTargetArea] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleQuickSubmit = async () => {
+    if (!targetRole.trim() || !targetArea) { setError("Please fill in target role and field."); return; }
+    setSubmitting(true); setError("");
+    try {
+      await api("POST", "/api/candidates", {
+        name: user.name, email: user.email,
+        currentRole: user.currentRole || "", company: user.company || "",
+        targetRole: targetRole.trim(), targetArea,
+        resume: user.resumeText, label: `${targetRole.trim()} Resume`,
+      });
+      onDone();
+    } catch(e) { setError(e.message); }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{border:"1px solid var(--border)",borderRadius:12,padding:"24px",background:"var(--bg)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{fontSize:24}}>📄</div>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>Resume uploaded</div>
+          <div style={{fontSize:12,color:"var(--ink-muted)"}}>Add a target role to submit for review</div>
+        </div>
+      </div>
+      {error && <div className="error-banner" style={{marginBottom:12,fontSize:13}}>{error}</div>}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end",marginBottom:12}}>
+        <div className="field" style={{margin:0,flex:"1 1 180px"}}>
+          <label style={{fontSize:11}}>Target role</label>
+          <input value={targetRole} onChange={e=>setTargetRole(e.target.value)} placeholder="e.g. Product Manager" style={{fontSize:13}} />
+        </div>
+        <div className="field" style={{margin:0,flex:"1 1 160px"}}>
+          <label style={{fontSize:11}}>Field / Area</label>
+          <select value={targetArea} onChange={e=>setTargetArea(e.target.value)} style={{fontSize:13}}>
+            <option value="">Select...</option>
+            {EXPERTISE_AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"9px 18px",flexShrink:0}} onClick={handleQuickSubmit} disabled={submitting}>
+          {submitting ? <><span className="spinner" style={{width:12,height:12}}/>Submitting...</> : "Submit for review →"}
+        </button>
+      </div>
+      <button style={{background:"none",border:"none",color:"var(--ink-muted)",fontSize:12,cursor:"pointer",padding:0,textDecoration:"underline"}} onClick={onSetupCandidate}>Upload a different resume</button>
+    </div>
+  );
+}
+
+function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
   const hasReviewer = !!user?.reviewer_id;
   const hasResume = !!(user?.resumeText);
@@ -598,21 +649,7 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
         {hasCandidate
           ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
           : hasResume
-          ? (
-            <div style={{border:"1px solid var(--border)",borderRadius:12,padding:"24px",background:"var(--bg)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{fontSize:28}}>📄</div>
-                <div>
-                  <div style={{fontWeight:600,fontSize:14}}>Resume uploaded</div>
-                  <div style={{fontSize:13,color:"var(--ink-muted)"}}>Ready to submit for review</div>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"9px 18px"}} onClick={onSetupCandidate}>Submit for review →</button>
-                <button className="action-btn" style={{padding:"9px 18px"}} onClick={onSetupCandidate}>Upload a different resume</button>
-              </div>
-            </div>
-          )
+          ? <ResumeCard user={user} onSetupCandidate={onSetupCandidate} onDone={onRefresh} />
           : (
             <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
               <div style={{fontSize:28,marginBottom:12}}>📄</div>
@@ -831,18 +868,18 @@ function CandidateSignup({ user, onDone }) {
   const [extracting, setExtracting] = useState(false);
   const extractedRef = useRef(""); // track which text we already extracted from
 
-  const extractFromResume = async (text) => {
+  const extractFromResume = async (text, forceUpdate = false) => {
     if (!text || text.trim().length < 80) return;
-    if (extractedRef.current === text) return; // already extracted from this text
+    if (!forceUpdate && extractedRef.current === text) return;
     extractedRef.current = text;
     setExtracting(true);
     try {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
-        currentRole: f.currentRole || info.role || "",
-        company: f.company || info.company || "",
-        targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+        currentRole: forceUpdate ? (info.role || f.currentRole) : (f.currentRole || info.role || ""),
+        company: forceUpdate ? (info.company || f.company) : (f.company || info.company || ""),
+        targetArea: forceUpdate ? (info.areas?.[0] || f.targetArea) : (f.targetArea || (info.areas && info.areas[0]) || ""),
       }));
     } catch(e) { /* silently skip auto-fill on error */ }
     setExtracting(false);
@@ -859,7 +896,7 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      extractFromResume(text);
+      extractFromResume(text, true); // explicit upload — always overwrite
       // Also read file as base64 for storage
       const reader = new FileReader();
       reader.onload = () => {
@@ -883,6 +920,10 @@ function CandidateSignup({ user, onDone }) {
     try {
       const payload = { ...form, label: (labelEdited && form.label) ? form.label : autoLabel };
       if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
+      // Keep profile resume up to date if user uploaded a new file
+      if (form.resume && form.resume !== prefillResume) {
+        api("PATCH", "/api/me/profile", { resumeText: form.resume, currentRole: form.currentRole, company: form.company }).catch(() => {});
+      }
       const result = await api("POST", "/api/candidates", payload);
       if (result.redactions?.length > 0) {
         const types = [...new Set(result.redactions.map(r => r.type))];
@@ -1797,7 +1838,7 @@ export default function App() {
 
 
       {view === "home" && user && (
-        <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} />
+        <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} onRefresh={async () => { await refreshUser().then(u => setUser(u)); }} />
       )}
 
       {view === "reviewer-setup" && user && (
