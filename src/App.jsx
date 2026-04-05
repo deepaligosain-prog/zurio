@@ -472,7 +472,7 @@ function LoginPage({ onLogin }) {
 }
 
 function Onboarding({ user, onDone }) {
-  const [form, setForm] = useState({ name: user?.name || "", currentRole:"", company:"", linkedin:"", resume:"" });
+  const [form, setForm] = useState({ name: "", currentRole:"", company:"", linkedin:"", resume:"" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
@@ -584,6 +584,7 @@ function Onboarding({ user, onDone }) {
 function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
   const hasReviewer = !!user?.reviewer_id;
+  const hasResume = !!(user?.resumeText);
 
   return (
     <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
@@ -591,16 +592,32 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
       <div style={{marginBottom:40}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Get reviewed</div>
-          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
+          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Submit another</button>}
         </div>
         {hasCandidate
           ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
+          : hasResume
+          ? (
+            <div style={{border:"1px solid var(--border)",borderRadius:12,padding:"24px",background:"var(--bg)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                <div style={{fontSize:28}}>📄</div>
+                <div>
+                  <div style={{fontWeight:600,fontSize:14}}>Resume uploaded</div>
+                  <div style={{fontSize:13,color:"var(--ink-muted)"}}>Ready to submit for review</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"9px 18px"}} onClick={onSetupCandidate}>Submit for review →</button>
+                <button className="action-btn" style={{padding:"9px 18px"}} onClick={onSetupCandidate}>Upload a different resume</button>
+              </div>
+            </div>
+          )
           : (
             <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
               <div style={{fontSize:28,marginBottom:12}}>📄</div>
-              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Submit another resume</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Submit your resume for review</div>
               <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Get matched with a real industry professional for honest, specific feedback.</p>
-              <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Submit a Resume</button>
+              <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Submit for review</button>
             </div>
           )
         }
@@ -788,14 +805,18 @@ function ReviewerSignup({ user, onDone }) {
 
 function CandidateSignup({ user, onDone }) {
   const reviewerResume = user?.reviewer?.resumeText || "";
+  const onboardingResume = user?.resumeText || "";
+  const prefillResume = reviewerResume || onboardingResume;
+  const prefillLabel = reviewerResume ? "Pre-filled from your reviewer profile" : onboardingResume ? "Pre-filled from your profile" : "";
   const [form, setForm] = useState({
     name: user?.name || "", email: user?.email || "",
-    currentRole:"", company:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
+    currentRole: user?.currentRole || "", company: user?.company || "",
+    targetRole:"", targetArea:"", resume: prefillResume, label: ""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [resumeTab, setResumeTab] = useState(reviewerResume ? "paste" : "upload");
-  const [fileName, setFileName] = useState(reviewerResume ? "Pre-filled from your reviewer profile" : "");
+  const [resumeTab, setResumeTab] = useState(prefillResume ? "paste" : "upload");
+  const [fileName, setFileName] = useState(prefillLabel);
   const [dragOver, setDragOver] = useState(false);
   const [labelEdited, setLabelEdited] = useState(false);
   const fileRef = useRef(null);
@@ -902,10 +923,10 @@ function CandidateSignup({ user, onDone }) {
 
       <div className="field">
         <label>Resume to review</label>
-        {reviewerResume && !fileName.startsWith("Pre-filled") === false && (
+        {prefillResume && (
           <div style={{background:"var(--cream)",border:"1px solid var(--amber)",borderRadius:8,padding:"8px 12px",fontSize:13,color:"var(--ink-muted)",marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
             <span>✦</span>
-            <span>Pre-filled from your reviewer profile — upload a different file or edit the text below to replace it.</span>
+            <span>{prefillLabel} — upload a different file or edit the text below to replace it.</span>
           </div>
         )}
         <div className="resume-tabs">
