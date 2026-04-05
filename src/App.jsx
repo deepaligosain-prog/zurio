@@ -472,27 +472,35 @@ function LoginPage({ onLogin }) {
 }
 
 function Onboarding({ user, onDone }) {
-  const [form, setForm] = useState({ targetRole:"", targetArea:"", resume:"" });
+  const [form, setForm] = useState({ name: user?.name || "", currentRole:"", company:"", linkedin:"", resume:"" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [fileData, setFileData] = useState(null);
   const extractedRef = useRef("");
   const fileRef = useRef(null);
+
+  // Extract LinkedIn URL from raw resume text
+  const extractLinkedin = (text) => {
+    const match = text.match(/linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
+    return match ? `https://www.${match[0]}` : "";
+  };
 
   const extractFromResume = async (text) => {
     if (!text || text.trim().length < 80) return;
     if (extractedRef.current === text) return;
     extractedRef.current = text;
     setExtracting(true);
+    // Extract LinkedIn immediately from raw text
+    const li = extractLinkedin(text);
+    if (li) setForm(f => ({ ...f, linkedin: f.linkedin || li }));
     try {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
-        targetRole: f.targetRole || info.role || "",
-        targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+        currentRole: f.currentRole || info.role || "",
+        company: f.company || info.company || "",
       }));
     } catch(e) {}
     setExtracting(false);
@@ -507,29 +515,17 @@ function Onboarding({ user, onDone }) {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
       extractFromResume(text);
-      const reader = new FileReader();
-      reader.onload = () => setFileData({ base64: reader.result.split(",")[1], type: file.type || "application/octet-stream", name: file.name });
-      reader.readAsDataURL(file);
     } catch(e) { setError(e.message); }
   };
-
-  const valid = form.resume.trim().length > 50 && form.targetRole && form.targetArea;
 
   const handleSubmit = async () => {
     setLoading(true); setError("");
     try {
-      const payload = {
-        name: user.name, email: user.email,
-        targetRole: form.targetRole, targetArea: form.targetArea,
-        resume: form.resume, currentRole: "", company: "", label: `${form.targetRole} Resume`,
-      };
-      if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
-      const result = await api("POST", "/api/candidates", payload);
-      if (result.redactions?.length > 0) {
-        const types = [...new Set(result.redactions.map(r => r.type))];
-        alert(`We automatically redacted ${result.redactions.length} item(s) from your resume for privacy: ${types.join(", ")}.`);
-      }
-      onDone(result);
+      await api("PATCH", "/api/me/profile", {
+        name: form.name, currentRole: form.currentRole, company: form.company,
+        linkedin: form.linkedin, resumeText: form.resume,
+      });
+      onDone();
     } catch(e) { setError(e.message); }
     setLoading(false);
   };
@@ -537,13 +533,13 @@ function Onboarding({ user, onDone }) {
   return (
     <div className="form-page">
       <div className="form-eyebrow blue">Get started</div>
-      <h1 className="form-heading">Upload your resume</h1>
-      <p className="form-subheading">We'll read your resume and set up your profile. You choose what to do next.</p>
+      <h1 className="form-heading">Set up your profile</h1>
+      <p className="form-subheading">Upload your resume and we'll fill in the details. You choose what to do next.</p>
       {error && <div className="error-banner">{error}</div>}
 
       {/* Resume upload — TOP */}
       <div className="field">
-        <label>Resume</label>
+        <label>Resume <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional</span></label>
         <div
           className={`upload-zone ${dragOver?"drag-over":""} ${fileName?"has-file":""}`}
           onClick={() => fileRef.current?.click()}
@@ -570,25 +566,17 @@ function Onboarding({ user, onDone }) {
         {extracting && <div style={{textAlign:"center",color:"var(--amber)",fontSize:13,marginTop:8}}><span className="spinner dark" style={{width:12,height:12,marginRight:6}}/>Reading your resume...</div>}
       </div>
 
-      {/* Fields below — auto-filled from resume */}
+      {/* Profile fields — auto-filled, all optional */}
+      <div className="field"><label>Name <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional</span></label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Your full name" /></div>
       <div className="two-inputs">
-        <div className="field">
-          <label>Target role</label>
-          <input value={form.targetRole} onChange={e=>setForm(f=>({...f,targetRole:e.target.value}))} placeholder="e.g. Product Manager" />
-        </div>
-        <div className="field">
-          <label>Field / Area</label>
-          <select value={form.targetArea} onChange={e=>setForm(f=>({...f,targetArea:e.target.value}))}>
-            <option value="">Select...</option>
-            {EXPERTISE_AREAS.map(a=><option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
+        <div className="field"><label>Current role <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional</span></label><input value={form.currentRole} onChange={e=>setForm(f=>({...f,currentRole:e.target.value}))} placeholder="e.g. Senior Engineer" /></div>
+        <div className="field"><label>Company <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional</span></label><input value={form.company} onChange={e=>setForm(f=>({...f,company:e.target.value}))} placeholder="e.g. Acme Corp" /></div>
       </div>
+      <div className="field"><label>LinkedIn <span style={{fontWeight:400,color:"var(--ink-muted)"}}>— optional</span></label><input value={form.linkedin} onChange={e=>setForm(f=>({...f,linkedin:e.target.value}))} placeholder="https://linkedin.com/in/yourname" /></div>
 
-      <button className="submit-btn amber" onClick={handleSubmit} disabled={loading || !valid}>
+      <button className="submit-btn amber" onClick={handleSubmit} disabled={loading}>
         {loading ? <><span className="spinner"/>Creating profile...</> : "Create my profile →"}
       </button>
-      {!valid && form.resume.trim().length > 0 && <p style={{fontSize:12,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>Fill in target role and field to continue.</p>}
     </div>
   );
 }
@@ -1734,8 +1722,8 @@ export default function App() {
 
   const routeUser = (u) => {
     if (!u) { setView("login"); return; }
-    // New users (no profiles yet) go to onboarding
-    if (!u.candidate_ids?.length && !u.reviewer_id) { setView("onboarding"); return; }
+    // New users (profile not yet completed) go to onboarding
+    if (!u.profileComplete && !u.candidate_ids?.length && !u.reviewer_id) { setView("onboarding"); return; }
     setView("home");
   };
 
@@ -1784,6 +1772,7 @@ export default function App() {
       {view === "onboarding" && user && (
         <Onboarding user={user} onDone={async () => { await refreshUser(); setView("home"); }} />
       )}
+
 
       {view === "home" && user && (
         <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} />

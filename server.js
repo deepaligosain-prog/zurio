@@ -228,6 +228,20 @@ app.post("/api/me/role", requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+// Save onboarding profile (name, currentRole, company, linkedin)
+app.patch("/api/me/profile", requireAuth, (req, res) => {
+  const { name, currentRole, company, linkedin, resumeText } = req.body;
+  if (name?.trim()) req.user.name = name.trim();
+  req.user.currentRole = currentRole || "";
+  req.user.company = company || "";
+  req.user.linkedin = linkedin || "";
+  if (resumeText) req.user.resumeText = resumeText;
+  req.user.profileComplete = true;
+  saveDB();
+  const { passwordHash: _, ...user } = { ...req.user };
+  res.json({ user });
+});
+
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
 async function sendEmail({ to, subject, html }) {
