@@ -582,7 +582,7 @@ function Onboarding({ user, onDone }) {
 }
 
 function ResumeCard({ user, onSetupCandidate, onDone }) {
-  const [targetRole, setTargetRole] = useState(user?.currentRole || "");
+  const [targetRole, setTargetRole] = useState("");
   const [targetArea, setTargetArea] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -896,6 +896,7 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
+      setResumeTab("upload"); // stay on upload tab showing the loaded file
       extractFromResume(text, true); // explicit upload — always overwrite
       // Also read file as base64 for storage
       const reader = new FileReader();
