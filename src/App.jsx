@@ -471,45 +471,66 @@ function LoginPage({ onLogin }) {
 function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
   const hasReviewer = !!user?.reviewer_id;
+  const [tab, setTab] = useState("candidate");
 
   return (
     <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
-      {/* Candidate Section */}
-      <div style={{marginBottom:40}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Candidate</div>
-          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
+      {/* Tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:28,borderBottom:"1px solid var(--border)",paddingBottom:0}}>
+        {[["candidate","Candidate"],["reviewer","Reviewer"]].map(([key,label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              background:"none",border:"none",cursor:"pointer",
+              padding:"8px 20px",fontSize:13,fontWeight:600,
+              color: tab===key ? "var(--blue)" : "var(--ink-muted)",
+              borderBottom: tab===key ? "2px solid var(--blue)" : "2px solid transparent",
+              marginBottom:-1,
+              transition:"color 0.15s",
+            }}
+          >{label}</button>
+        ))}
+      </div>
+
+      {tab === "candidate" && (
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Candidate Profile</div>
+            {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
+          </div>
+          {hasCandidate
+            ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
+            : (
+              <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+                <div style={{fontSize:28,marginBottom:12}}>📄</div>
+                <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Get your resume reviewed</div>
+                <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Submit your resume and get matched with a real industry professional for honest, specific feedback.</p>
+                <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Set up Candidate Profile</button>
+              </div>
+            )
+          }
         </div>
-        {hasCandidate
-          ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
-          : (
-            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
-              <div style={{fontSize:28,marginBottom:12}}>📄</div>
-              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Get your resume reviewed</div>
-              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Submit your resume and get matched with a real industry professional for honest, specific feedback.</p>
-              <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Set up Candidate Profile</button>
-            </div>
-          )
-        }
-      </div>
+      )}
 
-      <div style={{borderTop:"1px solid var(--border)",marginBottom:40}} />
-
-      {/* Reviewer Section */}
-      <div>
-        <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Reviewer</div>
-        {hasReviewer
-          ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
-          : (
-            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
-              <div style={{fontSize:28,marginBottom:12}}>🎓</div>
-              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Make an impact in your field</div>
-              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your industry expertise. Give real, specific feedback to candidates targeting your field.</p>
-              <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Set up Reviewer Profile</button>
-            </div>
-          )
-        }
-      </div>
+      {tab === "reviewer" && (
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Reviewer Profile</div>
+          </div>
+          {hasReviewer
+            ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
+            : (
+              <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+                <div style={{fontSize:28,marginBottom:12}}>🎓</div>
+                <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Make an impact in your field</div>
+                <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your industry expertise. Give real, specific feedback to candidates targeting your field.</p>
+                <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Set up Reviewer Profile</button>
+              </div>
+            )
+          }
+        </div>
+      )}
     </div>
   );
 }
