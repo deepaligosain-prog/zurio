@@ -685,49 +685,37 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }
 }
 
 function ReviewerSignup({ user, onDone }) {
+  const profileResume = user?.resumeText || "";
   const [form, setForm] = useState({
-    name: user?.name || "", role:"", company:"", years:"", areas:[], resumeText:"", linkedin:""
+    name: user?.name || "",
+    role: user?.currentRole || "",
+    company: user?.company || "",
+    linkedin: user?.linkedin || "",
+    years:"", areas:[],
+    resumeText: profileResume,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState(profileResume ? "Pre-filled from your profile" : "");
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
-  // On mount: fetch most recent candidate submission and pre-fill resume + role
+  // On mount: if profile resume exists but years/areas still missing, run extraction
   useEffect(() => {
-    const prefill = async () => {
+    if (!profileResume) return;
+    const extract = async () => {
       try {
-        const d = await api("GET", "/api/candidates/mine");
-        const subs = d.submissions;
-        if (!subs?.length) return;
-        const latest = subs[subs.length - 1]?.candidate;
-        if (!latest) return;
+        const info = await api("POST", "/api/extract-resume-info", { resumeText: profileResume });
         setForm(f => ({
           ...f,
-          resumeText: latest.resume || f.resumeText,
-          role: f.role || latest.currentRole || "",
-          company: f.company || latest.company || "",
+          role: f.role || info.role || "",
+          company: f.company || info.company || "",
+          years: f.years || info.years || "",
+          areas: f.areas.length > 0 ? f.areas : (info.areas || []),
         }));
-        if (latest.resume) {
-          setFileName("Pre-filled from your candidate profile");
-          // Run extraction if role/company still missing
-          if (!latest.currentRole || !latest.company) {
-            try {
-              const info = await api("POST", "/api/extract-resume-info", { resumeText: latest.resume });
-              setForm(f => ({
-                ...f,
-                role: f.role || info.role || "",
-                company: f.company || info.company || "",
-                years: f.years || info.years || "",
-                areas: f.areas.length > 0 ? f.areas : (info.areas || []),
-              }));
-            } catch(e) { /* silently skip */ }
-          }
-        }
       } catch(e) { /* silently skip */ }
     };
-    prefill();
+    extract();
   }, []);
 
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
@@ -743,16 +731,15 @@ function ReviewerSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resumeText: text }));
-      // Auto-fill form fields from resume via AI
       setExtracting(true);
       try {
         const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
         setForm(f => ({
           ...f,
-          role: f.role || info.role || "",
-          company: f.company || info.company || "",
-          years: f.years || info.years || "",
-          areas: f.areas.length > 0 ? f.areas : (info.areas || []),
+          role: info.role || f.role,
+          company: info.company || f.company,
+          years: info.years || f.years,
+          areas: info.areas?.length > 0 ? info.areas : f.areas,
         }));
       } catch(e) { /* silently skip auto-fill on error */ }
       setExtracting(false);
@@ -893,10 +880,10 @@ function CandidateSignup({ user, onDone }) {
       return;
     }
     setError(""); setFileName(file.name);
+    setResumeTab("upload"); // switch immediately on file select
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      setResumeTab("upload"); // stay on upload tab showing the loaded file
       extractFromResume(text, true); // explicit upload — always overwrite
       // Also read file as base64 for storage
       const reader = new FileReader();
@@ -921,10 +908,6 @@ function CandidateSignup({ user, onDone }) {
     try {
       const payload = { ...form, label: (labelEdited && form.label) ? form.label : autoLabel };
       if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
-      // Keep profile resume up to date if user uploaded a new file
-      if (form.resume && form.resume !== prefillResume) {
-        api("PATCH", "/api/me/profile", { resumeText: form.resume, currentRole: form.currentRole, company: form.company }).catch(() => {});
-      }
       const result = await api("POST", "/api/candidates", payload);
       if (result.redactions?.length > 0) {
         const types = [...new Set(result.redactions.map(r => r.type))];
