@@ -499,6 +499,7 @@ function Onboarding({ user, onDone }) {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
+        name: f.name || info.name || "",
         currentRole: f.currentRole || info.role || "",
         company: f.company || info.company || "",
       }));

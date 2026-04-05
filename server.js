@@ -696,9 +696,10 @@ app.post("/api/extract-resume-info", requireAuth, async (req, res) => {
   if (!resumeText?.trim()) return res.status(400).json({ error: "resumeText required" });
   try {
     const sys = `You extract structured info from resumes. You MUST return ONLY a valid JSON object with no explanation, no markdown, no code fences. Example format:
-{"role": "Software Engineer", "company": "Google", "years": "4–6", "areas": ["Software Engineering", "Backend"]}
+{"name": "Jane Smith", "role": "Software Engineer", "company": "Google", "years": "4–6", "areas": ["Software Engineering", "Backend"]}
 
 Fields:
+- name: the candidate's full name (string, usually at the top of the resume)
 - role: current or most recent job title (string)
 - company: current or most recent company (string)
 - years: total experience, one of: "1–3", "4–6", "7–10", "10–15", "15+"
@@ -800,8 +801,17 @@ Return ONLY the JSON object.`;
       if (areas.length >= 4) break;
     }
 
-    console.log(`[extract-resume-info] Fallback extracted: role="${role}", company="${company}", years="${years}", areas=[${areas}]`);
-    res.json({ role, company, years, areas, fallback: true });
+    // Extract name: usually the first non-empty line that looks like a proper name
+    let name = "";
+    for (const line of lines.slice(0, 5)) {
+      if (/^[A-Z][a-z]+ [A-Z][a-z]+/.test(line) && line.split(" ").length <= 4 && !line.includes("@") && !/\d{4}/.test(line)) {
+        name = line.trim();
+        break;
+      }
+    }
+
+    console.log(`[extract-resume-info] Fallback extracted: name="${name}", role="${role}", company="${company}", years="${years}", areas=[${areas}]`);
+    res.json({ name, role, company, years, areas, fallback: true });
   }
 });
 
