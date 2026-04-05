@@ -581,7 +581,59 @@ function Onboarding({ user, onDone }) {
   );
 }
 
-function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
+function ResumeCard({ user, onSetupCandidate, onDone }) {
+  const [targetRole, setTargetRole] = useState(user?.currentRole || "");
+  const [targetArea, setTargetArea] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleQuickSubmit = async () => {
+    if (!targetRole.trim() || !targetArea) { setError("Please fill in target role and field."); return; }
+    setSubmitting(true); setError("");
+    try {
+      await api("POST", "/api/candidates", {
+        name: user.name, email: user.email,
+        currentRole: user.currentRole || "", company: user.company || "",
+        targetRole: targetRole.trim(), targetArea,
+        resume: user.resumeText, label: `${targetRole.trim()} Resume`,
+      });
+      onDone();
+    } catch(e) { setError(e.message); }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{border:"1px solid var(--border)",borderRadius:12,padding:"24px",background:"var(--bg)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{fontSize:24}}>📄</div>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>Resume uploaded</div>
+          <div style={{fontSize:12,color:"var(--ink-muted)"}}>Add a target role to submit for review</div>
+        </div>
+      </div>
+      {error && <div className="error-banner" style={{marginBottom:12,fontSize:13}}>{error}</div>}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end",marginBottom:12}}>
+        <div className="field" style={{margin:0,flex:"1 1 180px"}}>
+          <label style={{fontSize:11}}>Target role</label>
+          <input value={targetRole} onChange={e=>setTargetRole(e.target.value)} placeholder="e.g. Product Manager" style={{fontSize:13}} />
+        </div>
+        <div className="field" style={{margin:0,flex:"1 1 160px"}}>
+          <label style={{fontSize:11}}>Field / Area</label>
+          <select value={targetArea} onChange={e=>setTargetArea(e.target.value)} style={{fontSize:13}}>
+            <option value="">Select...</option>
+            {EXPERTISE_AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"9px 18px",flexShrink:0}} onClick={handleQuickSubmit} disabled={submitting}>
+          {submitting ? <><span className="spinner" style={{width:12,height:12}}/>Submitting...</> : "Submit for review →"}
+        </button>
+      </div>
+      <button style={{background:"none",border:"none",color:"var(--ink-muted)",fontSize:12,cursor:"pointer",padding:0,textDecoration:"underline"}} onClick={onSetupCandidate}>Upload a different resume</button>
+    </div>
+  );
+}
+
+function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
   const hasReviewer = !!user?.reviewer_id;
   const hasResume = !!(user?.resumeText);
@@ -597,21 +649,7 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
         {hasCandidate
           ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
           : hasResume
-          ? (
-            <div style={{border:"1px solid var(--border)",borderRadius:12,padding:"24px",background:"var(--bg)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                <div style={{fontSize:28}}>📄</div>
-                <div>
-                  <div style={{fontWeight:600,fontSize:14}}>Resume uploaded</div>
-                  <div style={{fontSize:13,color:"var(--ink-muted)"}}>Ready to submit for review</div>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"9px 18px"}} onClick={onSetupCandidate}>Submit for review →</button>
-                <button className="action-btn" style={{padding:"9px 18px"}} onClick={onSetupCandidate}>Upload a different resume</button>
-              </div>
-            </div>
-          )
+          ? <ResumeCard user={user} onSetupCandidate={onSetupCandidate} onDone={onRefresh} />
           : (
             <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
               <div style={{fontSize:28,marginBottom:12}}>📄</div>
@@ -1800,7 +1838,7 @@ export default function App() {
 
 
       {view === "home" && user && (
-        <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} />
+        <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} onRefresh={async () => { await refreshUser().then(u => setUser(u)); }} />
       )}
 
       {view === "reviewer-setup" && user && (
