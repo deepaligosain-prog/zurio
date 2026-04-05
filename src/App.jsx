@@ -586,7 +586,7 @@ function Onboarding({ user, onDone }) {
       </div>
 
       <button className="submit-btn amber" onClick={handleSubmit} disabled={loading || !valid}>
-        {loading ? <><span className="spinner"/>Submitting...</> : "Get my resume reviewed →"}
+        {loading ? <><span className="spinner"/>Creating profile...</> : "Create my profile →"}
       </button>
       {!valid && form.resume.trim().length > 0 && <p style={{fontSize:12,color:"var(--ink-muted)",marginTop:8,textAlign:"center"}}>Fill in target role and field to continue.</p>}
     </div>
