@@ -411,7 +411,7 @@ function redactPII(text, candidateName) {
 
 // ─── Candidate routes ─────────────────────────────────────────────────────────
 app.post("/api/candidates", requireAuth, async (req, res) => {
-  const { name, email, currentRole, targetRole, targetArea, resume, fileBase64, fileType, fileName } = req.body;
+  const { name, email, currentRole, company, targetRole, targetArea, resume, fileBase64, fileType, fileName } = req.body;
   if (!name || !email || !targetRole || !targetArea || !resume)
     return res.status(400).json({ error: "Missing required fields" });
 
@@ -420,7 +420,7 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
 
   // Always create a new candidate submission (one user can have multiple)
   const { label } = req.body; // optional user-override label
-  const candidateData = { name, email, currentRole: currentRole || "", targetRole, targetArea, resume: cleanResume, label: label || "" };
+  const candidateData = { name, email, currentRole: currentRole || "", company: company || "", targetRole, targetArea, resume: cleanResume, label: label || "" };
   if (fileBase64) { candidateData.fileBase64 = fileBase64; candidateData.fileType = fileType || "application/pdf"; candidateData.fileName = fileName || "resume.pdf"; }
   const candidate = insert("candidates", candidateData);
   if (!req.user.candidate_ids) req.user.candidate_ids = [];
@@ -441,6 +441,8 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
   // We exclude any reviewer whose owning user is the same person submitting the candidate
   const getReviewerOwner = (reviewerId) => db.users.find(u => u.reviewer_id === reviewerId);
 
+  const candidateCompany = (candidate.company || "").trim().toLowerCase();
+
   const eligibleReviewers = db.reviewers.filter(r => {
     // Only approved reviewers can be matched
     if (r.status !== "approved") return false;
@@ -449,6 +451,11 @@ app.post("/api/candidates", requireAuth, async (req, res) => {
     // Self-match check: exclude if the reviewer's user account is the same as the candidate's
     const reviewerOwner = getReviewerOwner(r.id);
     if (reviewerOwner && reviewerOwner.id === req.user.id) return false;
+    // Same-company check: don't match candidate with a reviewer from the same company
+    if (candidateCompany && r.company) {
+      const reviewerCompany = r.company.trim().toLowerCase();
+      if (reviewerCompany === candidateCompany) return false;
+    }
     return true;
   });
 
@@ -942,7 +949,7 @@ app.get("/api/admin/dashboard", checkAdmin, (req, res) => {
                   db.matches.find(m => m.candidate_id === c.id);
     const reviewer = match?.reviewer_id ? db.reviewers.find(r => r.id === match.reviewer_id) : null;
     return {
-      id: c.id, name: c.name, email: c.email, currentRole: c.currentRole, targetRole: c.targetRole, targetArea: c.targetArea,
+      id: c.id, name: c.name, email: c.email, currentRole: c.currentRole, company: c.company || "", targetRole: c.targetRole, targetArea: c.targetArea,
       created_at: c.created_at,
       matchStatus: match?.status || "unmatched",
       reviewerName: reviewer?.name || null,

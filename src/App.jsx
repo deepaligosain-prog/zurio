@@ -307,29 +307,12 @@ async function adminApi(method, path, body) {
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
-function TopNav({ user, onHome, onSignOut, onTabSelect, currentView }) {
-  const isHome = currentView === "home";
-  const isReviewer = currentView === "reviewer-dashboard" || currentView === "reviewer-setup";
-  const isCandidate = currentView === "candidate-status" || currentView === "candidate-setup";
+function TopNav({ user, onHome, onSignOut }) {
   return (
     <nav className="top-nav">
       <div className="nav-wordmark" onClick={onHome}>Zurily</div>
       {user ? (
         <div className="nav-user">
-          <div className="nav-tabs">
-            <button
-              className={`nav-tab ${isHome ? "active-blue" : ""}`}
-              onClick={onHome}
-            >Home</button>
-            <button
-              className={`nav-tab ${isReviewer ? "active-amber" : ""}`}
-              onClick={() => onTabSelect("reviewer")}
-            >Reviewer</button>
-            <button
-              className={`nav-tab ${isCandidate ? "active-blue" : ""}`}
-              onClick={() => onTabSelect("candidate")}
-            >Candidate</button>
-          </div>
           {user.picture
             ? <img className="nav-avatar" src={user.picture} alt={user.name} referrerPolicy="no-referrer" />
             : <div className="avatar amber-bg" style={{width:30,height:30,fontSize:13}}>{user.name?.[0]}</div>
@@ -485,43 +468,47 @@ function LoginPage({ onLogin }) {
   );
 }
 
-function HomeDashboard({ user, onGo }) {
-  const hasReviewer = !!user?.reviewer_id;
+function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer }) {
   const hasCandidate = !!(user?.candidate_ids?.length);
-  const firstName = user?.name?.split(" ")[0];
+  const hasReviewer = !!user?.reviewer_id;
 
   return (
-    <div className="role-page">
-      <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:10}}>Welcome back, {firstName}</div>
-      <h1 className="form-heading serif" style={{textAlign:"center"}}>Your Profiles</h1>
-      <p style={{fontSize:15,color:"var(--ink-muted)",marginTop:8,textAlign:"center",marginBottom:32}}>You can be both a candidate and a reviewer.</p>
-      <div className="role-grid">
-        <div className="role-card candidate" onClick={() => onGo("candidate")} style={{cursor:"pointer"}}>
-          <div className="role-icon">📄</div>
-          <div className="role-title">Candidate Profile</div>
-          {hasCandidate
-            ? <p className="role-desc" style={{color:"var(--ink-light)"}}>✓ Active — view status &amp; feedback</p>
-            : <p className="role-desc">Submit your resume and get matched with a real industry professional for honest feedback.</p>
-          }
-          <div style={{marginTop:14}}>
-            <span className="action-btn" style={{fontSize:12,padding:"6px 14px",background:"var(--blue-light)",color:"#1d4ed8",border:"1px solid #bfdbfe",borderRadius:6,display:"inline-block"}}>
-              {hasCandidate ? "View Candidate Profile →" : "Set up Candidate Profile →"}
-            </span>
-          </div>
+    <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
+      {/* Candidate Section */}
+      <div style={{marginBottom:40}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)"}}>Candidate</div>
+          {hasCandidate && <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",fontSize:12,padding:"5px 12px"}} onClick={onSetupCandidate}>+ Add Resume</button>}
         </div>
-        <div className="role-card reviewer" onClick={() => onGo("reviewer")} style={{cursor:"pointer"}}>
-          <div className="role-icon">🎓</div>
-          <div className="role-title">Reviewer Profile</div>
-          {hasReviewer
-            ? <p className="role-desc" style={{color:"var(--ink-light)"}}>✓ Active — view matches &amp; feedback queue</p>
-            : <p className="role-desc">Share your industry expertise. Give real, specific feedback to candidates in your field.</p>
-          }
-          <div style={{marginTop:14}}>
-            <span className="action-btn" style={{fontSize:12,padding:"6px 14px",background:"var(--amber-light)",color:"#92400e",border:"1px solid #fde68a",borderRadius:6,display:"inline-block"}}>
-              {hasReviewer ? "View Reviewer Profile →" : "Set up Reviewer Profile →"}
-            </span>
-          </div>
-        </div>
+        {hasCandidate
+          ? <CandidateStatus onNoProfile={onSetupCandidate} onAddNew={onSetupCandidate} embedded />
+          : (
+            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+              <div style={{fontSize:28,marginBottom:12}}>📄</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Get your resume reviewed</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Submit your resume and get matched with a real industry professional for honest, specific feedback.</p>
+              <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Set up Candidate Profile</button>
+            </div>
+          )
+        }
+      </div>
+
+      <div style={{borderTop:"1px solid var(--border)",marginBottom:40}} />
+
+      {/* Reviewer Section */}
+      <div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Reviewer</div>
+        {hasReviewer
+          ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
+          : (
+            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+              <div style={{fontSize:28,marginBottom:12}}>🎓</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Make an impact in your field</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your industry expertise. Give real, specific feedback to candidates targeting your field.</p>
+              <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Set up Reviewer Profile</button>
+            </div>
+          )
+        }
       </div>
     </div>
   );
@@ -537,16 +524,40 @@ function ReviewerSignup({ user, onDone }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
-  // On mount: fetch most recent candidate submission resume and pre-fill
+  // On mount: fetch most recent candidate submission and pre-fill resume + role
   useEffect(() => {
-    api("GET", "/api/candidates/mine").then(d => {
-      const subs = d.submissions;
-      if (!subs?.length) return;
-      const resume = subs[subs.length - 1]?.candidate?.resume;
-      if (!resume) return;
-      setForm(f => ({ ...f, resumeText: resume }));
-      setFileName("Pre-filled from your candidate submission");
-    }).catch(() => {}); // silently skip if endpoint not available
+    const prefill = async () => {
+      try {
+        const d = await api("GET", "/api/candidates/mine");
+        const subs = d.submissions;
+        if (!subs?.length) return;
+        const latest = subs[subs.length - 1]?.candidate;
+        if (!latest) return;
+        setForm(f => ({
+          ...f,
+          resumeText: latest.resume || f.resumeText,
+          role: f.role || latest.currentRole || "",
+          company: f.company || latest.company || "",
+        }));
+        if (latest.resume) {
+          setFileName("Pre-filled from your candidate profile");
+          // Run extraction if role/company still missing
+          if (!latest.currentRole || !latest.company) {
+            try {
+              const info = await api("POST", "/api/extract-resume-info", { resumeText: latest.resume });
+              setForm(f => ({
+                ...f,
+                role: f.role || info.role || "",
+                company: f.company || info.company || "",
+                years: f.years || info.years || "",
+                areas: f.areas.length > 0 ? f.areas : (info.areas || []),
+              }));
+            } catch(e) { /* silently skip */ }
+          }
+        }
+      } catch(e) { /* silently skip */ }
+    };
+    prefill();
   }, []);
 
   const toggleArea = (a) => setForm(f => ({ ...f, areas: f.areas.includes(a) ? f.areas.filter(x=>x!==a) : [...f.areas,a] }));
@@ -664,7 +675,7 @@ function CandidateSignup({ user, onDone }) {
   const reviewerResume = user?.reviewer?.resumeText || "";
   const [form, setForm] = useState({
     name: user?.name || "", email: user?.email || "",
-    currentRole:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
+    currentRole:"", company:"", targetRole:"", targetArea:"", resume: reviewerResume, label: ""
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -693,6 +704,7 @@ function CandidateSignup({ user, onDone }) {
       setForm(f => ({
         ...f,
         currentRole: f.currentRole || info.role || "",
+        company: f.company || info.company || "",
         targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
       }));
     } catch(e) { /* silently skip auto-fill on error */ }
@@ -861,73 +873,70 @@ function ShareBanner({ role }) {
   );
 }
 
-function ReviewerDashboard({ reviewerId, user }) {
+function ReviewerDashboard({ reviewerId, user, embedded }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
   const load = () => api("GET", `/api/reviewers/${reviewerId}`).then(setData).catch(e=>setError(e.message));
   useEffect(() => { load(); }, [reviewerId]);
 
-  if (error) return <div className="dashboard"><div className="error-banner">{error}</div></div>;
-  if (!data) return <div className="thankyou-page"><div className="big-icon">⏳</div></div>;
+  if (error) return <div className="error-banner">{error}</div>;
+  if (!data) return <div style={{padding:"24px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:13}}><span className="spinner dark" style={{width:14,height:14,marginRight:8}}/>Loading...</div>;
 
   const { reviewer, matches } = data;
   const status = reviewer.status || "approved"; // backcompat
 
+  const W = ({ children }) => embedded ? <div>{children}</div> : <div className="dashboard">{children}</div>;
+
   if (status === "pending") return (
-    <div className="dashboard">
-      <div className="dash-header">
+    <W>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
-          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
-          <h1 className="dash-title">{reviewer.name}</h1>
-          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{reviewer.role} · {reviewer.company}</div>
+          <div style={{fontWeight:600}}>{reviewer.name}</div>
+          <div style={{fontSize:13,color:"var(--ink-muted)"}}>{reviewer.role} · {reviewer.company}</div>
         </div>
         <span className="badge" style={{background:"#FEF9C3",color:"#A16207"}}>⏳ Under Review</span>
       </div>
-      <div style={{background:"var(--amber-light)",border:"1px solid rgba(217,119,6,0.15)",borderRadius:12,padding:"24px 28px",marginTop:8}}>
-        <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>Your profile is under review</div>
-        <p style={{fontSize:14,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We review every reviewer profile to ensure candidates get quality feedback. You'll be notified once approved — typically within 24 hours.</p>
-        <div style={{marginTop:16,display:"flex",flexWrap:"wrap",gap:8}}>
+      <div style={{background:"var(--amber-light)",border:"1px solid rgba(217,119,6,0.15)",borderRadius:12,padding:"20px 24px"}}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>Your profile is under review</div>
+        <p style={{fontSize:13,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We review every reviewer profile to ensure candidates get quality feedback. You'll be notified once approved — typically within 24 hours.</p>
+        <div style={{marginTop:12,display:"flex",flexWrap:"wrap",gap:8}}>
           {reviewer.areas?.map(a => <span key={a} className="chip active-amber" style={{cursor:"default"}}>{a}</span>)}
         </div>
       </div>
-    </div>
+    </W>
   );
 
   if (status === "rejected") return (
-    <div className="dashboard">
-      <div className="dash-header">
-        <div>
-          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
-          <h1 className="dash-title">{reviewer.name}</h1>
-        </div>
+    <W>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div style={{fontWeight:600}}>{reviewer.name}</div>
         <span className="badge red">Declined</span>
       </div>
-      <div style={{background:"#FEF2F2",border:"1px solid rgba(220,38,38,0.15)",borderRadius:12,padding:"24px 28px",marginTop:8}}>
-        <p style={{fontSize:14,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We're unable to approve your reviewer profile at this time. This could be due to limited experience in the selected areas. If you think this is an error, please reach out to us.</p>
+      <div style={{background:"#FEF2F2",border:"1px solid rgba(220,38,38,0.15)",borderRadius:12,padding:"20px 24px"}}>
+        <p style={{fontSize:13,color:"var(--ink-light)",lineHeight:1.6,margin:0}}>We're unable to approve your reviewer profile at this time. If you think this is an error, please reach out.</p>
       </div>
-    </div>
+    </W>
   );
 
   return (
-    <div className="dashboard">
-      <div className="dash-header">
+    <W>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div>
-          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Reviewer Dashboard</div>
-          <h1 className="dash-title">{reviewer.name}</h1>
-          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{reviewer.role} · {reviewer.company}</div>
+          <div style={{fontWeight:600}}>{reviewer.name}</div>
+          <div style={{fontSize:13,color:"var(--ink-muted)"}}>{reviewer.role} · {reviewer.company}</div>
         </div>
         <span className="badge amber">● Active Reviewer</span>
       </div>
       <div className="section-label">Assigned matches ({matches.length})</div>
       {matches.length === 0 && (
-        <div style={{padding:"40px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:15}}>
+        <div style={{padding:"32px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:14}}>
           No matches yet — you'll be notified when a candidate is paired with you.
         </div>
       )}
       {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} />)}
       <ShareBanner role="reviewer" />
-    </div>
+    </W>
   );
 }
 
@@ -1200,8 +1209,7 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
   useEffect(() => {
     api("GET", "/api/candidates/mine")
       .then(d => {
-        if (!d.submissions || d.submissions.length === 0) { onNoProfile?.(); return; }
-        setSubmissions(d.submissions);
+        setSubmissions(d.submissions || []);
       })
       .catch(e => {
         // If endpoint missing (old server), show error rather than looping back to form
@@ -1213,27 +1221,16 @@ function CandidateStatus({ onNoProfile, onAddNew }) {
       });
   }, []);
 
-  if (error) return <div className="dashboard"><div className="error-banner">{error}</div></div>;
+  if (error) return <div className="error-banner">{error}</div>;
   if (!submissions) return (
-    <div className="thankyou-page">
-      <div className="big-icon" style={{animation:"spin 1s linear infinite"}}>⚙</div>
-      <p style={{color:"var(--ink-muted)",fontSize:14,marginTop:16}}>Loading your submissions...</p>
+    <div style={{padding:"24px 0",textAlign:"center",color:"var(--ink-muted)",fontSize:13}}>
+      <span className="spinner dark" style={{width:14,height:14,marginRight:8}} />Loading...
     </div>
   );
 
-  const firstName = submissions[0]?.candidate?.name?.split(" ")[0] || "there";
-
   return (
-    <div className="dashboard">
-      <div className="dash-header">
-        <div>
-          <div style={{fontSize:13,color:"var(--ink-muted)",marginBottom:6}}>Candidate Dashboard</div>
-          <h1 className="dash-title">Hi, {firstName}</h1>
-          <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{submissions.length} resume{submissions.length !== 1 ? "s" : ""} submitted</div>
-        </div>
-        <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none"}} onClick={onAddNew}>+ Add Resume</button>
-      </div>
-      <div className="section-label" style={{marginBottom:16}}>Your submissions</div>
+    <div>
+      <div className="section-label" style={{marginBottom:16}}>{submissions.length} resume{submissions.length !== 1 ? "s" : ""} submitted</div>
       {submissions.map((s, i) => <SubmissionCard key={i} submission={s} />)}
       <ShareBanner role="candidate" />
     </div>
@@ -1614,13 +1611,10 @@ export default function App() {
     setView("home");
   };
 
-  const handleTabSelect = async (tab) => {
-    if (tab === "reviewer") {
-      const fresh = await refreshUser();
-      setView(fresh?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
-    } else {
-      setView(user?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
-    }
+  const goSetupCandidate = () => setView("candidate-setup");
+  const goSetupReviewer = async () => {
+    await refreshUser();
+    setView("reviewer-setup");
   };
 
   const handleSignOut = async () => {
@@ -1651,7 +1645,7 @@ export default function App() {
           <span className="badge red" style={{fontSize:11}}>ADMIN MODE</span>
         </nav>
       ) : view !== "login" ? (
-        <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} onTabSelect={handleTabSelect} currentView={view} />
+        <TopNav user={user} onHome={() => routeUser(user)} onSignOut={handleSignOut} />
       ) : null}
 
       {view === "admin-login" && <AdminLogin onAuth={() => setView("admin")} />}
@@ -1660,30 +1654,15 @@ export default function App() {
       {view === "login" && <LoginPage onLogin={(u) => { setUser(u); routeUser(u); }} />}
 
       {view === "home" && user && (
-        <HomeDashboard user={user} onGo={async (role) => {
-          const fresh = await refreshUser();
-          if (role === "reviewer") setView(fresh?.reviewer_id ? "reviewer-dashboard" : "reviewer-setup");
-          else setView(fresh?.candidate_ids?.length ? "candidate-status" : "candidate-setup");
-        }} />
+        <UnifiedDashboard user={user} onSetupCandidate={goSetupCandidate} onSetupReviewer={goSetupReviewer} />
       )}
 
       {view === "reviewer-setup" && user && (
-        <ReviewerSignup user={user} onDone={async () => { await refreshUser(); setView("reviewer-dashboard"); }} />
+        <ReviewerSignup user={user} onDone={async () => { await refreshUser(); setView("home"); }} />
       )}
 
       {view === "candidate-setup" && user && (
-        <CandidateSignup user={user} onDone={async () => { await refreshUser(); setView("candidate-status"); }} />
-      )}
-
-      {view === "reviewer-dashboard" && user?.reviewer_id && (
-        <ReviewerDashboard reviewerId={user.reviewer_id} user={user} />
-      )}
-
-      {view === "candidate-status" && (
-        <CandidateStatus
-          onNoProfile={() => setView("candidate-setup")}
-          onAddNew={() => setView("candidate-setup")}
-        />
+        <CandidateSignup user={user} onDone={async () => { await refreshUser(); setView("home"); }} />
       )}
     </>
   );
