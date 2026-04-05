@@ -487,21 +487,20 @@ function Onboarding({ user, onDone }) {
     return match ? `https://www.${match[0]}` : "";
   };
 
-  const extractFromResume = async (text) => {
+  const extractFromResume = async (text, forceUpdate = false) => {
     if (!text || text.trim().length < 80) return;
-    if (extractedRef.current === text) return;
+    if (!forceUpdate && extractedRef.current === text) return;
     extractedRef.current = text;
     setExtracting(true);
-    // Extract LinkedIn immediately from raw text
     const li = extractLinkedin(text);
-    if (li) setForm(f => ({ ...f, linkedin: f.linkedin || li }));
+    if (li) setForm(f => ({ ...f, linkedin: forceUpdate ? li : (f.linkedin || li) }));
     try {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
-        name: f.name || info.name || "",
-        currentRole: f.currentRole || info.role || "",
-        company: f.company || info.company || "",
+        name: forceUpdate ? (info.name || f.name) : (f.name || info.name || ""),
+        currentRole: forceUpdate ? (info.role || f.currentRole) : (f.currentRole || info.role || ""),
+        company: forceUpdate ? (info.company || f.company) : (f.company || info.company || ""),
       }));
     } catch(e) {}
     setExtracting(false);
@@ -515,7 +514,7 @@ function Onboarding({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      extractFromResume(text);
+      extractFromResume(text, true); // explicit upload — always overwrite extracted fields
     } catch(e) { setError(e.message); }
   };
 
@@ -831,18 +830,18 @@ function CandidateSignup({ user, onDone }) {
   const [extracting, setExtracting] = useState(false);
   const extractedRef = useRef(""); // track which text we already extracted from
 
-  const extractFromResume = async (text) => {
+  const extractFromResume = async (text, forceUpdate = false) => {
     if (!text || text.trim().length < 80) return;
-    if (extractedRef.current === text) return; // already extracted from this text
+    if (!forceUpdate && extractedRef.current === text) return;
     extractedRef.current = text;
     setExtracting(true);
     try {
       const info = await api("POST", "/api/extract-resume-info", { resumeText: text });
       setForm(f => ({
         ...f,
-        currentRole: f.currentRole || info.role || "",
-        company: f.company || info.company || "",
-        targetArea: f.targetArea || (info.areas && info.areas[0]) || "",
+        currentRole: forceUpdate ? (info.role || f.currentRole) : (f.currentRole || info.role || ""),
+        company: forceUpdate ? (info.company || f.company) : (f.company || info.company || ""),
+        targetArea: forceUpdate ? (info.areas?.[0] || f.targetArea) : (f.targetArea || (info.areas && info.areas[0]) || ""),
       }));
     } catch(e) { /* silently skip auto-fill on error */ }
     setExtracting(false);
@@ -859,7 +858,7 @@ function CandidateSignup({ user, onDone }) {
     try {
       const text = await extractTextFromFile(file);
       setForm(f => ({ ...f, resume: text }));
-      extractFromResume(text);
+      extractFromResume(text, true); // explicit upload — always overwrite
       // Also read file as base64 for storage
       const reader = new FileReader();
       reader.onload = () => {
@@ -883,6 +882,10 @@ function CandidateSignup({ user, onDone }) {
     try {
       const payload = { ...form, label: (labelEdited && form.label) ? form.label : autoLabel };
       if (fileData) { payload.fileBase64 = fileData.base64; payload.fileType = fileData.type; payload.fileName = fileData.name; }
+      // Keep profile resume up to date if user uploaded a new file
+      if (form.resume && form.resume !== prefillResume) {
+        api("PATCH", "/api/me/profile", { resumeText: form.resume, currentRole: form.currentRole, company: form.company }).catch(() => {});
+      }
       const result = await api("POST", "/api/candidates", payload);
       if (result.redactions?.length > 0) {
         const types = [...new Set(result.redactions.map(r => r.type))];
