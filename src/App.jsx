@@ -640,6 +640,14 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }
 
   return (
     <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
+      {/* Profile Header */}
+      {(user?.name || user?.currentRole) && (
+        <div style={{marginBottom:36}}>
+          {user.name && <div style={{fontWeight:700,fontSize:22,lineHeight:1.2}}>{user.name}</div>}
+          {user.currentRole && <div style={{fontSize:14,color:"var(--ink-muted)",marginTop:4}}>{user.currentRole}{user.company ? ` · ${user.company}` : ""}</div>}
+        </div>
+      )}
+
       {/* Reviewer Section */}
       <div style={{marginBottom:40}}>
         <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Give back</div>
