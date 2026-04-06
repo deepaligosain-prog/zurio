@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "zurio-dev",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "dist", "-l", "5175", "-s"],
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": [".claude/static-server.cjs"],
       "port": 5175
     }
   ]
