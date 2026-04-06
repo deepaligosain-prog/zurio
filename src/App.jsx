@@ -1064,10 +1064,10 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
   if (status === "pending") return (
     <W>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div>
+        {!embedded && <div>
           <div style={{fontWeight:600}}>{reviewer.name}</div>
           <div style={{fontSize:13,color:"var(--ink-muted)"}}>{reviewer.role} · {reviewer.company}</div>
-        </div>
+        </div>}
         <span className="badge" style={{background:"#FEF9C3",color:"#A16207"}}>⏳ Under Review</span>
       </div>
       <div style={{background:"var(--amber-light)",border:"1px solid rgba(217,119,6,0.15)",borderRadius:12,padding:"20px 24px"}}>
@@ -1083,7 +1083,7 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
   if (status === "rejected") return (
     <W>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div style={{fontWeight:600}}>{reviewer.name}</div>
+        {!embedded && <div style={{fontWeight:600}}>{reviewer.name}</div>}
         <span className="badge red">Declined</span>
       </div>
       <div style={{background:"#FEF2F2",border:"1px solid rgba(220,38,38,0.15)",borderRadius:12,padding:"20px 24px"}}>
@@ -1095,10 +1095,10 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
   return (
     <W>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div>
+        {!embedded && <div>
           <div style={{fontWeight:600}}>{reviewer.name}</div>
           <div style={{fontSize:13,color:"var(--ink-muted)"}}>{reviewer.role} · {reviewer.company}</div>
-        </div>
+        </div>}
         <span className="badge amber">● Active Reviewer</span>
       </div>
       <div className="section-label">Assigned matches ({matches.length})</div>
@@ -1108,7 +1108,7 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
         </div>
       )}
       {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} />)}
-      <ShareBanner role="reviewer" />
+      {!embedded && <ShareBanner role="reviewer" />}
     </W>
   );
 }
