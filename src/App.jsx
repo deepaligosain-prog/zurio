@@ -1099,7 +1099,6 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
           <div style={{fontWeight:600}}>{reviewer.name}</div>
           <div style={{fontSize:13,color:"var(--ink-muted)"}}>{reviewer.role} · {reviewer.company}</div>
         </div>}
-        <span className="badge amber">● Active Reviewer</span>
       </div>
       <div className="section-label">Assigned matches ({matches.length})</div>
       {matches.length === 0 && (
@@ -1107,24 +1106,26 @@ function ReviewerDashboard({ reviewerId, user, embedded }) {
           No matches yet — you'll be notified when a candidate is paired with you.
         </div>
       )}
-      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} />)}
+      {[...matches].sort((a,b) => (a.status==="pending"?0:1) - (b.status==="pending"?0:1)).map(m => <MatchCard key={m.id} match={m} onRefresh={load} hideReviewer={embedded} />)}
       {!embedded && <ShareBanner role="reviewer" />}
     </W>
   );
 }
 
-function MatchCard({ match, onRefresh }) {
+function MatchCard({ match, onRefresh, hideReviewer }) {
   const [showReview, setShowReview] = useState(false);
   if (showReview) return <InlineReview match={match} onBack={()=>setShowReview(false)} onDone={()=>{setShowReview(false);onRefresh();}} />;
   return (
     <div className="match-card">
       <div className="match-card-header">
         <div className="match-names">
-          <div className="avatar amber-bg">{match.reviewer?.name?.[0]}</div>
-          <div className="name-block"><strong>{match.reviewer?.name}</strong><span>{match.reviewer?.role} · {match.reviewer?.company}</span></div>
-          <span className="match-arrow">→</span>
+          {!hideReviewer && <>
+            <div className="avatar amber-bg">{match.reviewer?.name?.[0]}</div>
+            <div className="name-block"><strong>{match.reviewer?.name}</strong><span>{match.reviewer?.role} · {match.reviewer?.company}</span></div>
+            <span className="match-arrow">→</span>
+          </>}
           <div className="avatar blue-bg">{match.candidate?.name?.[0]}</div>
-          <div className="name-block"><strong>{match.candidate?.name}</strong><span>{match.candidate?.targetArea}</span></div>
+          <div className="name-block"><strong>{match.candidate?.name}</strong><span>{match.candidate?.currentRole}{match.candidate?.targetRole ? ` → ${match.candidate?.targetRole}` : ""}</span><span style={{fontSize:11,color:"var(--ink-muted)"}}>{match.candidate?.targetArea}</span></div>
         </div>
         <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Reviewed":"● Awaiting Review"}</span>
       </div>
