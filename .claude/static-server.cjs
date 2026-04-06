@@ -10,3 +10,4 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
   fs.createReadStream(filePath).pipe(res);
 }).listen(5175, () => console.log('Serving on http://localhost:5175'));
+
