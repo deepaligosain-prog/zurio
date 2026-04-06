@@ -1125,7 +1125,7 @@ function MatchCard({ match, onRefresh, hideReviewer }) {
             <span className="match-arrow">→</span>
           </>}
           <div className="avatar blue-bg">{match.candidate?.name?.[0]}</div>
-          <div className="name-block"><strong>{match.candidate?.targetRole}</strong><span>{match.candidate?.targetArea}</span></div>
+          <div className="name-block"><strong>{match.candidate?.name}</strong><span>{match.candidate?.targetArea}</span></div>
         </div>
         <span className={`badge ${match.status==="done"?"green":"amber"}`}>{match.status==="done"?"✓ Reviewed":"● Awaiting Review"}</span>
       </div>
