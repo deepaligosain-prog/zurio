@@ -640,6 +640,24 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }
 
   return (
     <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
+      {/* Reviewer Section */}
+      <div style={{marginBottom:40}}>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Give back</div>
+        {hasReviewer
+          ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
+          : (
+            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
+              <div style={{fontSize:28,marginBottom:12}}>🎓</div>
+              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Help someone land their next role</div>
+              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your expertise. Give real, specific feedback to candidates in your field.</p>
+              <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Become a Reviewer</button>
+            </div>
+          )
+        }
+      </div>
+
+      <div style={{borderTop:"1px solid var(--border)",marginBottom:40}} />
+
       {/* Candidate Section */}
       <div style={{marginBottom:40}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -656,24 +674,6 @@ function UnifiedDashboard({ user, onSetupCandidate, onSetupReviewer, onRefresh }
               <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Submit your resume for review</div>
               <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Get matched with a real industry professional for honest, specific feedback.</p>
               <button className="action-btn" style={{background:"var(--blue)",color:"white",border:"none",padding:"10px 20px"}} onClick={onSetupCandidate}>Submit for review</button>
-            </div>
-          )
-        }
-      </div>
-
-      <div style={{borderTop:"1px solid var(--border)",marginBottom:40}} />
-
-      {/* Reviewer Section */}
-      <div style={{marginBottom:40}}>
-        <div style={{fontFamily:"'DM Mono',monospace",fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--ink-muted)",marginBottom:16}}>Give back</div>
-        {hasReviewer
-          ? <ReviewerDashboard reviewerId={user.reviewer_id} user={user} embedded />
-          : (
-            <div style={{border:"1.5px dashed var(--border)",borderRadius:12,padding:"36px 32px",textAlign:"center",background:"var(--bg)"}}>
-              <div style={{fontSize:28,marginBottom:12}}>🎓</div>
-              <div style={{fontWeight:600,fontSize:15,marginBottom:8}}>Help someone land their next role</div>
-              <p style={{fontSize:13,color:"var(--ink-muted)",lineHeight:1.6,maxWidth:380,margin:"0 auto 20px"}}>Share your expertise. Give real, specific feedback to candidates in your field.</p>
-              <button className="action-btn amber-btn" style={{padding:"10px 20px"}} onClick={onSetupReviewer}>Become a Reviewer</button>
             </div>
           )
         }
